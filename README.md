@@ -1,8 +1,8 @@
-# FFXIV AMD NR 优化版 · test8
+# FFXIV AMD NR 优化版 · test9
 
 基于 [MatheusGViana/dlss-5-amd-project](https://github.com/MatheusGViana/dlss-5-amd-project) 的实验性 OptiScaler 分支，重点改善 FF14 中 AMD Neural Rendering 的随机超时和处理效率。
 
-采用已验证的 **test8**：捕获完成后通知 HIP 推理，等待 worker 全部收尾，再提交回写；超分消费完结果后才复用资源。本地及两轮游戏采样未记录到超时，包括一次 FG/多挡位测试。**这不是对所有游戏、设置和长期稳定性的保证。**
+推理核心沿用已验证的 **test8**：捕获完成后通知 HIP 推理，等待 worker 全部收尾，再提交回写；超分消费完结果后才复用资源。本地及两轮游戏采样未记录到超时，包括一次 FG/多挡位测试。**这不是对所有游戏、设置和长期稳定性的保证。**
 
 ## 来源与范围
 
@@ -38,6 +38,18 @@ python tools/build.py --rebuild
 
 可用 `--vs`、`--sdk`、`--directx-headers` 指定其他安装位置。更换头文件或工具链后使用 `--rebuild` 重新生成预编译头。输出为 `src/x64/Release/OptiScaler.dll`；构建日志位于 `.build/`。本脚本不改动游戏安装目录。
 
+## 简易设置（test9）
+
+启动时不会弹出设置窗口。按原有菜单快捷键（默认 Insert）打开中文简易设置，只保留 FSR 超分倍率、FSR FG、DLSS5 开关、处理分辨率、色调与结构强度、帧率限制及帧率显示。菜单仍沿用原有快捷键设置。
+
+“打开原生完整设置”进入上游完整界面；其中的 “Back to simple settings” 可以返回。关闭菜单后再次用快捷键打开，默认回到简易界面。中文使用 Windows 系统字体；缺少可用中文字体时回退英文。窗口支持拖动、调整大小与滚动。
+
+AMD 路径的色调/结构强度连接到实际生效的参数；原生 NVIDIA `Intensity` 不用于这条 AMD 路径。肤质等细项保留在完整界面。
+
+滑块松开后应用，保存按钮写入现有 OptiScaler.ini。首次配置 FSR FG 需要保存并重启，之后可直接开关。1.0x 超分表示原生分辨率抗锯齿，关闭游戏超分需在游戏设置中操作。
+
+界面已通过完整 DLL 构建及离屏 DX11/WARP 交互检查，**test9 尚待实际游戏验证**。Dalamud 虚表模式是待验证的兼容性缓解方案，尚未标记为修复；旧 API 插件仍需更新。
+
 ## 使用
 
 退出游戏，备份现有代理 DLL 和配置。对已经使用 winmm 代理方式安装 OptiScaler 的 FF14，将新 DLL 命名为 `winmm.dll`，与 `config/amd_presr_perf.ini` 一起放到游戏目录，保留现有其他依赖。私有 runtime/weights 需自行取得；其版本必须匹配 `src/OptiScaler/dlssnr/amd/RuntimeHash.h` 中校验值。
@@ -56,6 +68,8 @@ python tools/build.py worker
 python tools/build.py continuity
 .build/tests/continuity-test.exe
 python tools/build.py smoke
+python tools/build.py menu
+.build/tests/simple-settings-test.exe
 ```
 
 GPU 测试需 AMD HIP 7 和匹配 runtime/weights。将四个依赖文件放到被忽略的 `.runtime/`，或设置 `AMD_TEST_RUNTIME_DIR`。测试目录与依赖需在同一卷（使用硬链接）。
@@ -68,6 +82,8 @@ python tests/run_tests.py --case sync-default --run capture --phased --capture-d
 python tests/run_tests.py --case post-return-signal --run consumer --phased
 python tests/run_tests.py --case sync-default --run tail --phased --tail-sync --frames 2
 ```
+
+菜单测试只在独立 WARP 设备上渲染，检查交互并将 RGBA 预览写入 `.build/menu-preview/`，不连接游戏。
 
 每次使用新的 `--run` 名称，避免覆盖证据。测试专用 GPU 标志读回和故障注入不编入产品 DLL。
 

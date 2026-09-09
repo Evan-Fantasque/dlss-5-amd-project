@@ -156,6 +156,7 @@ class MenuCommon
     // so a screenshot keeps them and the wipe reveals and hides them like the images.
     static void RenderNrCompareTags();
     static void RenderMainMenuWindow(RenderMenuContext& ctx);
+    static void RenderSimpleMenuWindow(RenderMenuContext& ctx);
 
     // RenderMainMenuWindow section helpers. These keep the main window flow readable
     // without changing the existing ImGui layout, labels, or setting side effects.

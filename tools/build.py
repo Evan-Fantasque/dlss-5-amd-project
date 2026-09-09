@@ -3,7 +3,7 @@ from pathlib import Path
 import argparse,os,subprocess,sys
 root=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser()
-p.add_argument('target',nargs='?',default='product',choices=['product','smoke','cancel','split','worker','continuity','fence'])
+p.add_argument('target',nargs='?',default='product',choices=['product','smoke','cancel','split','worker','continuity','fence','menu'])
 p.add_argument('--vs',type=Path,help='Visual Studio installation directory')
 p.add_argument('--sdk',default='10.0.22621.0')
 p.add_argument('--rebuild',action='store_true',help='Rebuild all product objects, including precompiled headers')
@@ -42,5 +42,13 @@ elif a.target=='cancel':
     sources=[tests/'smoke.cpp',fixture];exe='amd-smoke-cancel.exe';defines=['/DAMD_TEST_CANCEL']
 incs=[amd,vc/'include']+[sdk/f'Include/{a.sdk}/{n}' for n in ['ucrt','shared','um','winrt']]
 libs=[vc/'lib/x64']+[sdk/f'Lib/{a.sdk}/{n}/x64' for n in ['ucrt','um']]
+if a.target=='menu':
+    imgui=source/'OptiScaler/include/imgui'
+    sources=[tests/'simple_settings_test.cpp']+[imgui/n for n in ['imgui.cpp','imgui_draw.cpp','imgui_tables.cpp','imgui_widgets.cpp','imgui_impl_dx11.cpp','misc/freetype/imgui_freetype.cpp']]
+    incs += [source/'OptiScaler/include',source/'OptiScaler/menu',source/'external/freetype']
+    libs += [source/'external/freetype']
+    defines += ['/utf-8']
+    exe='simple-settings-test.exe'
 args=[str(vc/'bin/Hostx64/x64/cl.exe'),'/nologo','/EHsc','/std:c++20','/MD','/O2',f'/Fo{obj}/',*defines,*[f'/I{x}' for x in incs],*[str(x) for x in sources],f'/Fe:{bin_dir/exe}','/link',*[f'/LIBPATH:{x}' for x in libs],'d3d12.lib','d3d11.lib','dxgi.lib','d3dcompiler.lib','bcrypt.lib','user32.lib']
+if a.target=='menu':args += ['freetype.lib','gdi32.lib','imm32.lib']
 sys.exit(subprocess.call(args,env=env,cwd=root))

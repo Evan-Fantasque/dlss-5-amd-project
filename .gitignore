@@ -17,3 +17,4 @@ dlssnr_amd_pass*.dll
 src/OptiScaler/library/
 src/external/freetype/freetype.lib
 *.download
+*.rgba

@@ -1,1 +1,1 @@
-#define VER_BUILD_COMMIT "e58ff27-7b9dcb9-amd-perf-test8"
+#define VER_BUILD_COMMIT "b6b78ac-amd-ui-test9"

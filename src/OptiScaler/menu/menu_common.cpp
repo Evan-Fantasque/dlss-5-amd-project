@@ -1,5 +1,8 @@
 ﻿#include "pch.h"
 #include "menu_common.h"
+#include "simple_settings.h"
+#include <dlssnr/amd/AmdBridge.h>
+#include <fstream>
 #include <dlssnr/DlssNr_ExposureScan.h>
 
 #include <algorithm>
@@ -64,6 +67,35 @@ static bool xefgInitTried = false;
 static std::string windowTitle;
 static std::string selectedUpscalerName = "";
 static Upscaler currentBackend = Upscaler::Reset;
+static bool showFullSettings = false;
+static ImFont* simpleFont = nullptr;
+static SimpleSettings::EditState simpleEdits;
+static int simpleSaveResult = 0;
+
+static void LoadSimpleSettingsFont(ImGuiIO& io)
+{
+    if (simpleFont != nullptr) return;
+    if (io.Fonts->Fonts.empty()) io.Fonts->AddFontDefault();
+    wchar_t windows[MAX_PATH] {};
+    const UINT length = GetWindowsDirectoryW(windows, MAX_PATH);
+    if (!length || length >= MAX_PATH) return;
+    for (const auto* name : { L"msyh.ttc", L"simhei.ttf", L"simsun.ttc" })
+    {
+        const auto path = std::filesystem::path(windows) / L"Fonts" / name;
+        std::ifstream file(path, std::ios::binary | std::ios::ate);
+        if (!file) continue;
+        const auto size = file.tellg();
+        if (size <= 0 || size > 64 * 1024 * 1024) continue;
+        void* data = ImGui::MemAlloc(static_cast<size_t>(size));
+        if (data == nullptr) continue;
+        file.seekg(0);
+        if (!file.read(static_cast<char*>(data), static_cast<std::streamsize>(size)))
+        { ImGui::MemFree(data); continue; }
+        // The atlas owns the data; glyphs are baked on demand by the existing renderer.
+        simpleFont = io.Fonts->AddFontFromMemoryTTF(data, static_cast<int>(size), 18.f);
+        if (simpleFont != nullptr) break;
+    }
+}
 static std::string currentBackendName = "";
 static int refreshRate = 0;
 static ImVec2 lastPosition(-1000.0f, -1000.0f);
@@ -1342,6 +1374,9 @@ void MenuCommon::HandleMenuShortcuts(RenderMenuContext& ctx)
 
             if (_isVisible)
             {
+                showFullSettings = false;
+                simpleEdits = {};
+                simpleSaveResult = 0;
                 io.ClearEventsQueue();
                 io.ClearInputKeys();
                 io.ClearInputMouse();
@@ -7519,6 +7554,110 @@ void MenuCommon::RenderHudlessResourcesWindow(RenderMenuContext& ctx, ImGuiWindo
     }
 }
 
+void MenuCommon::RenderSimpleMenuWindow(RenderMenuContext& ctx)
+{
+    auto config = ctx.config;
+    auto& state = ctx.state;
+    const float scale = std::clamp(ctx.menuResScale, .6f, 2.f);
+    if (lastMenuScale != scale)
+    {
+        lastMenuScale = scale;
+        auto& style = ImGui::GetStyle();
+        auto previous = style;
+        style = ImGuiStyle();
+        ApplyThemeStyle();
+        style.ScaleAllSizes(scale);
+        style.MouseCursorScale = 1.f;
+        CopyMemory(style.Colors, previous.Colors, sizeof(style.Colors));
+    }
+    ImGui::PushFont(simpleFont, 18.f * scale);
+    const auto* viewport = ImGui::GetMainViewport();
+    const ImVec2 maximum(std::max(160.f, viewport->WorkSize.x - 24.f), std::max(160.f, viewport->WorkSize.y - 24.f));
+    ImGui::SetNextWindowSizeConstraints(ImVec2(std::min(420.f * scale,maximum.x), std::min(240.f * scale,maximum.y)), maximum);
+    ImGui::SetNextWindowSize(ImVec2(std::min(560.f * scale,maximum.x),std::min(690.f * scale,maximum.y)), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowPos(ImVec2(viewport->WorkPos.x + viewport->WorkSize.x * .5f,
+                                  viewport->WorkPos.y + viewport->WorkSize.y * .5f), ImGuiCond_FirstUseEver, ImVec2(.5f,.5f));
+    bool open = true;
+    SimpleSettings::Actions actions;
+    SimpleSettings::Model model;
+    model.chinese = simpleFont != nullptr;
+    model.inputActive = ctx.currentFeature != nullptr && !ctx.currentFeature->IsFrozen();
+    const auto backend = GetBackendCode(state.api);
+    const auto backendName = UpscalerDisplayName(backend, state.api);
+    model.backend = backendName.c_str();
+    model.fsrSelected = backend == Upscaler::FFX || backend == Upscaler::FFX_on12 || backend == Upscaler::FSR31 ||
+                        backend == Upscaler::FSR22 || backend == Upscaler::FSR22_on12 || backend == Upscaler::FSR21 || backend == Upscaler::FSR21_on12;
+    model.canSelectFsr = model.inputActive && backend != Upscaler::DLSSD && (state.api == DX11 || state.api == DX12) && FfxApiProxy::IsSRReady(false);
+    model.ratioOverride = config->UpscaleRatioOverrideEnabled.value_or_default();
+    model.ratio = config->UpscaleRatioOverrideValue.value_or_default();
+    if (!ffxInitTried && state.api != Vulkan && !state.externalFrameGeneration &&
+        (!FfxApiProxy::IsSRReady(false) || !FfxApiProxy::IsFGReady(false)))
+    {
+        ffxInitTried = true;
+        FfxApiProxy::InitFfxDx12();
+        model.canSelectFsr = model.inputActive && backend != Upscaler::DLSSD && FfxApiProxy::IsSRReady(false);
+    }
+    model.fgSupported = state.api != Vulkan && FfxApiProxy::IsFGReady(false);
+    model.externalFg = state.externalFrameGeneration;
+    model.fgRouteActive = state.activeFgOutput == FGOutput::FSRFG && state.activeFgInput != FGInput::NoFG;
+    model.fgRouteConfigured = config->FGInput.value_or_default() == FGInput::Upscaler && config->FGOutput.value_or_default() == FGOutput::FSRFG;
+    model.fgEnabled = config->FGEnabled.value_or_default();
+    model.fgRestart = state.activeFgOutput != config->FGOutput.value_or_default() || state.activeFgInput != config->FGInput.value_or_default() ||
+                      state.externalFrameGeneration != config->ExternalFrameGeneration.value_or_default();
+    model.nrAvailable = DlssNr::AmdBridge::HasFiles();
+    model.nrEnabled = config->DlssNrEnabled.value_or_default();
+    model.nrPercent = config->AmdNrScale.value_or_default() * 100.f;
+    model.tone = config->DlssNrLocalTone.value_or_default();
+    model.structure = config->DlssNrLocalStructure.value_or_default();
+    if (!std::isfinite(model.tone)) model.tone = 1.f;
+    if (!std::isfinite(model.structure)) model.structure = 1.f;
+    model.fpsLimit = config->FramerateLimit.value_or_default();
+    if (!std::isfinite(model.nrPercent)) model.nrPercent = 100.f;
+    if (!std::isfinite(model.fpsLimit)) model.fpsLimit = 0.f;
+    if (!std::isfinite(model.ratio)) model.ratio = 1.3f;
+    model.showFps = config->ShowFps.value_or_default();
+    if (ImGui::Begin(SimpleSettings::Text(model.chinese, "FFXIV AMD 简易设置###FfxivSimpleSettings", "FFXIV AMD Simple Settings###FfxivSimpleSettings"), &open, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings))
+    {
+        actions = SimpleSettings::Draw(model, simpleEdits);
+        if (simpleSaveResult != 0)
+            ImGui::TextWrapped("%s", simpleSaveResult > 0 ? SimpleSettings::Text(model.chinese,"设置已保存。","Settings saved.") : SimpleSettings::Text(model.chinese,"保存失败，请检查配置文件写入权限。","Save failed. Check configuration file permissions."));
+    }
+    ImGui::End();
+    ImGui::PopFont();
+    if (actions.selectFsr)
+    {
+        state.newBackend = state.api == DX11 ? Upscaler::FFX_on12 : Upscaler::FFX;
+        MARK_ALL_BACKENDS_CHANGED();
+    }
+    if (actions.ratio)
+    {
+        config->UpscaleRatioOverrideEnabled = model.ratioOverride;
+        config->QualityRatioOverrideEnabled = false;
+        if (model.ratioOverride) config->UpscaleRatioOverrideValue = model.ratio;
+    }
+    if (actions.prepareFg)
+    {
+        config->FGInput = FGInput::Upscaler;
+        config->FGOutput = FGOutput::FSRFG;
+        state.fgSettingsChanged = true;
+    }
+    if (actions.fg)
+    {
+        config->FGEnabled = model.fgEnabled;
+        if (model.fgEnabled) state.fgChanged = true;
+    }
+    if (actions.nr) config->DlssNrEnabled = model.nrEnabled;
+    if (actions.nrScale) config->AmdNrScale = model.nrPercent / 100.f;
+    if (actions.tone) config->DlssNrLocalTone = model.tone;
+    if (actions.structure) config->DlssNrLocalStructure = model.structure;
+    if (actions.limit) { config->FramerateLimit = model.fpsLimit; _limitFps = model.fpsLimit; }
+    if (actions.showFps) config->ShowFps = model.showFps;
+    if (actions.selectFsr || actions.ratio || actions.prepareFg || actions.fg || actions.nr || actions.nrScale || actions.tone || actions.structure || actions.limit || actions.showFps) simpleSaveResult = 0;
+    if (actions.save) simpleSaveResult = config->SaveIni() ? 1 : -1;
+    if (actions.full) { showFullSettings = true; simpleEdits = {}; }
+    if (actions.close || !open) HideMenu();
+}
+
 void MenuCommon::RenderMainMenuWindow(RenderMenuContext& ctx)
 {
     auto& state = ctx.state;
@@ -7530,6 +7669,11 @@ void MenuCommon::RenderMainMenuWindow(RenderMenuContext& ctx)
 
     if (!_isVisible)
         return;
+    if (!showFullSettings)
+    {
+        RenderSimpleMenuWindow(ctx);
+        return;
+    }
 
     // Check for GPU support once and reuse the result in all menu sections.
     // DXVK might call Vulkan device creation, which would destroy our objects.
@@ -7594,6 +7738,12 @@ void MenuCommon::RenderMainMenuWindow(RenderMenuContext& ctx)
 
     if (ImGui::Begin(windowTitle.c_str(), NULL, flags))
     {
+        if (ImGui::Button("Back to simple settings"))
+        {
+            showFullSettings = false;
+            simpleEdits = {};
+            _showMipmapCalcWindow = _showHudlessWindow = false;
+        }
         // Header/status messages shown above the two-column settings table.
         RenderMainMenuHeaderMessages(ctx);
 
@@ -7603,9 +7753,8 @@ void MenuCommon::RenderMainMenuWindow(RenderMenuContext& ctx)
         // Diagnostics and footer actions below the settings table.
         RenderMainMenuGraphs(ctx);
         RenderMainMenuBottomBar(ctx);
-
-        ImGui::End();
     }
+    ImGui::End();
 
     // Detached utility windows owned by the main menu.
     RenderMipmapBiasWindow(ctx, flags);
@@ -7723,8 +7872,8 @@ bool MenuCommon::RenderMenu()
 
     // 1) Collect timing and input state before any ImGui drawing.
     UpdateRenderTiming(ctx);
-    UpdateMenuInputMode(ctx);
     HandleMenuShortcuts(ctx);
+    UpdateMenuInputMode(ctx);
 
     // 2) Prepare one-shot notifications and start a new ImGui frame only when needed.
     UpdateVersionAndStartupNotifications(ctx);
@@ -7832,6 +7981,8 @@ void MenuCommon::Init(HWND InHwnd, bool isUWP)
         }
     }
 
+    LoadSimpleSettingsFont(io);
+
     if (!Config::Instance()->OverlayMenu.value_or_default())
     {
         _hdrTonemapApplied = false;
@@ -7875,6 +8026,9 @@ void MenuCommon::Shutdown()
         ImGui_ImplUwp_Shutdown();
 
     ImGui::DestroyContext();
+    simpleFont = nullptr;
+    simpleEdits = {};
+    showFullSettings = false;
 
     _handle = nullptr;
     _isInited = false;
