@@ -71,6 +71,7 @@ static bool showFullSettings = false;
 static ImFont* simpleFont = nullptr;
 static SimpleSettings::EditState simpleEdits;
 static int simpleSaveResult = 0;
+static bool simpleUpscaleRestart = false;
 
 static void LoadSimpleSettingsFont(ImGuiIO& io)
 {
@@ -7574,7 +7575,7 @@ void MenuCommon::RenderSimpleMenuWindow(RenderMenuContext& ctx)
     const auto* viewport = ImGui::GetMainViewport();
     const ImVec2 maximum(std::max(160.f, viewport->WorkSize.x - 24.f), std::max(160.f, viewport->WorkSize.y - 24.f));
     ImGui::SetNextWindowSizeConstraints(ImVec2(std::min(420.f * scale,maximum.x), std::min(240.f * scale,maximum.y)), maximum);
-    ImGui::SetNextWindowSize(ImVec2(std::min(560.f * scale,maximum.x),std::min(690.f * scale,maximum.y)), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(std::min(560.f * scale,maximum.x),std::min(850.f * scale,maximum.y)), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowPos(ImVec2(viewport->WorkPos.x + viewport->WorkSize.x * .5f,
                                   viewport->WorkPos.y + viewport->WorkSize.y * .5f), ImGuiCond_FirstUseEver, ImVec2(.5f,.5f));
     bool open = true;
@@ -7590,6 +7591,10 @@ void MenuCommon::RenderSimpleMenuWindow(RenderMenuContext& ctx)
     model.canSelectFsr = model.inputActive && backend != Upscaler::DLSSD && (state.api == DX11 || state.api == DX12) && FfxApiProxy::IsSRReady(false);
     model.ratioOverride = config->UpscaleRatioOverrideEnabled.value_or_default();
     model.ratio = config->UpscaleRatioOverrideValue.value_or_default();
+    model.drsMin = config->DrsMinOverrideEnabled.value_or_default();
+    model.drsMax = config->DrsMaxOverrideEnabled.value_or_default();
+    model.qualityOverride = config->QualityRatioOverrideEnabled.value_or_default();
+    model.upscaleRestart = simpleUpscaleRestart;
     if (!ffxInitTried && state.api != Vulkan && !state.externalFrameGeneration &&
         (!FfxApiProxy::IsSRReady(false) || !FfxApiProxy::IsFGReady(false)))
     {
@@ -7629,9 +7634,12 @@ void MenuCommon::RenderSimpleMenuWindow(RenderMenuContext& ctx)
         state.newBackend = state.api == DX11 ? Upscaler::FFX_on12 : Upscaler::FFX;
         MARK_ALL_BACKENDS_CHANGED();
     }
-    if (actions.ratio)
+    if (actions.ratio || actions.ffxivPreset)
     {
         config->UpscaleRatioOverrideEnabled = model.ratioOverride;
+        config->DrsMinOverrideEnabled = model.drsMin;
+        config->DrsMaxOverrideEnabled = model.drsMax;
+        simpleUpscaleRestart = true;
         config->QualityRatioOverrideEnabled = false;
         if (model.ratioOverride) config->UpscaleRatioOverrideValue = model.ratio;
     }
@@ -7652,7 +7660,7 @@ void MenuCommon::RenderSimpleMenuWindow(RenderMenuContext& ctx)
     if (actions.structure) config->DlssNrLocalStructure = model.structure;
     if (actions.limit) { config->FramerateLimit = model.fpsLimit; _limitFps = model.fpsLimit; }
     if (actions.showFps) config->ShowFps = model.showFps;
-    if (actions.selectFsr || actions.ratio || actions.prepareFg || actions.fg || actions.nr || actions.nrScale || actions.tone || actions.structure || actions.limit || actions.showFps) simpleSaveResult = 0;
+    if (actions.ffxivPreset || actions.selectFsr || actions.ratio || actions.prepareFg || actions.fg || actions.nr || actions.nrScale || actions.tone || actions.structure || actions.limit || actions.showFps) simpleSaveResult = 0;
     if (actions.save) simpleSaveResult = config->SaveIni() ? 1 : -1;
     if (actions.full) { showFullSettings = true; simpleEdits = {}; }
     if (actions.close || !open) HideMenu();

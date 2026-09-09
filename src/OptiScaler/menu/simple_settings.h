@@ -14,7 +14,8 @@ struct Model
 {
     bool chinese = false, inputActive = false, fsrSelected = false, canSelectFsr = false;
     const char* backend = "";
-    bool ratioOverride = false;
+    bool ratioOverride = false, drsMin = false, drsMax = false, qualityOverride = false;
+    bool upscaleRestart = false;
     float ratio = 1.3f;
     bool fgSupported = false, fgRouteActive = false, fgRouteConfigured = false;
     bool externalFg = false, fgEnabled = false, fgRestart = false;
@@ -24,7 +25,7 @@ struct Model
 };
 struct Actions
 {
-    bool selectFsr = false, ratio = false, prepareFg = false, fg = false;
+    bool ffxivPreset = false, selectFsr = false, ratio = false, prepareFg = false, fg = false;
     bool nr = false, nrScale = false, tone = false, structure = false, limit = false, showFps = false;
     bool full = false, save = false, close = false;
 };
@@ -38,11 +39,22 @@ void RecordItem(const char* id);
 #else
 inline void RecordItem(const char*) {}
 #endif
+inline bool FfxivReady(const Model& m)
+{
+    return m.ratioOverride && m.drsMin && m.drsMax && !m.qualityOverride;
+}
+inline void ApplyFfxivPreset(Model& m)
+{
+    m.ratioOverride = m.drsMin = m.drsMax = true;
+    m.qualityOverride = false;
+    if (!std::isfinite(m.ratio) || m.ratio <= 0.f) m.ratio = 1.3f;
+    m.upscaleRestart = true;
+}
 inline Actions Draw(Model& m, EditState& edit)
 {
     Actions a;
     auto tr = [&m](const char* zh, const char* en) { return Text(m.chinese, zh, en); };
-    ImGui::TextDisabled("FFXIV AMD | test9");
+    ImGui::TextDisabled("FFXIV AMD | test10");
     ImGui::TextWrapped("%s", tr("常用选项在这里，更多调整请打开完整设置。", "Everyday controls. Open full settings for advanced options."));
 
     ImGui::Spacing();
@@ -59,17 +71,16 @@ inline Actions Draw(Model& m, EditState& edit)
     ImGui::BeginDisabled(!m.fsrSelected);
     char ratioLabel[64];
     if (m.ratioOverride) std::snprintf(ratioLabel, sizeof(ratioLabel), "%.2fx", m.ratio);
-    else std::snprintf(ratioLabel, sizeof(ratioLabel), "%s", tr("跟随游戏", "Game setting"));
+    else std::snprintf(ratioLabel, sizeof(ratioLabel), "%s", tr("尚未设置", "Not configured"));
     ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * .53f);
     if (ImGui::BeginCombo(tr("超分倍率##ratio", "Upscale ratio##ratio"), ratioLabel))
     {
-        if (ImGui::Selectable(tr("跟随游戏", "Game setting"), !m.ratioOverride)) { m.ratioOverride = false; a.ratio = true; }
         const float values[] = {1.f, 1.3f, 1.5f, 1.7f, 2.f, 3.f};
         for (float v : values)
         {
             std::snprintf(ratioLabel, sizeof(ratioLabel), "%.1fx%s", v, v == 1.f ? tr("（原生分辨率抗锯齿）", " (native AA)") : "");
             if (ImGui::Selectable(ratioLabel, m.ratioOverride && std::abs(m.ratio - v) < .001f))
-            { m.ratioOverride = true; m.ratio = v; a.ratio = true; }
+            { m.ratio = v; ApplyFfxivPreset(m); a.ratio = true; }
             if (v == 1.3f) RecordItem("ratio13");
         }
         ImGui::EndCombo();
@@ -77,6 +88,16 @@ inline Actions Draw(Model& m, EditState& edit)
     RecordItem("ratio");
     ImGui::EndDisabled();
     ImGui::TextWrapped("%s", tr("倍率越大，渲染分辨率越低、负担越小。", "Higher ratios lower the render resolution and workload."));
+
+    ImGui::TextWrapped("%s", FfxivReady(m) ? tr("FFXIV 必需设置：已配置", "FFXIV required settings: configured") : tr("FFXIV 必需设置：未配齐", "FFXIV required settings: incomplete"));
+    ImGui::BeginDisabled(FfxivReady(m));
+    a.ffxivPreset = ImGui::Button(tr("一键应用 FFXIV 必需设置##ffxivPreset", "Apply FFXIV required settings##ffxivPreset")); RecordItem("ffxivPreset");
+    ImGui::EndDisabled();
+    if (a.ffxivPreset) ApplyFfxivPreset(m);
+    ImGui::TextWrapped("%s", tr("统一倍率并覆盖动态分辨率上下限，让游戏采用所选倍率。选择倍率也会自动补齐。", "Overrides all ratios and both DRS limits. Choosing a ratio also applies these settings."));
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f,.78f,.35f,1.f));
+    ImGui::TextWrapped("%s", m.upscaleRestart ? tr("超分设置已修改：必须保存并重启游戏才能生效。", "Upscaling settings changed: save and restart the game to apply.") : tr("注意：修改超分倍率后，必须保存并重启游戏才能生效。", "After changing the upscale ratio, save and restart the game to apply."));
+    ImGui::PopStyleColor();
 
     ImGui::Spacing();
     ImGui::SeparatorText("FSR FG");

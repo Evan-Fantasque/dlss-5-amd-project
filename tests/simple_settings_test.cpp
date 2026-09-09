@@ -39,7 +39,7 @@ try {
     SimpleSettings::Model m;m.chinese=true;m.inputActive=true;m.fsrSelected=true;m.backend="FSR 4 (DX12)";m.ratioOverride=true;m.ratio=1.3f;m.fgSupported=m.fgRouteActive=m.fgRouteConfigured=m.fgEnabled=true;m.nrAvailable=m.nrEnabled=true;m.nrPercent=75.f;m.fpsLimit=60;
     SimpleSettings::EditState edits;
     float viewScale=1.f;
-    ImVec2 winSize(560,690);
+    ImVec2 winSize(560,840);
     auto frame=[&]() {
         ImGui_ImplDX11_NewFrame();ImGui::NewFrame();ImGui::PushFont(font,18.f*viewScale);
         ImGui::SetNextWindowPos(ImVec2(40,35),ImGuiCond_Always);ImGui::SetNextWindowSize(winSize,ImGuiCond_Always);
@@ -58,7 +58,16 @@ try {
     auto click=[&](const char* id) {
         frame();auto r=items.at(id);io.AddMousePosEvent(r.a.x+12,(r.a.y+r.b.y)*.5f);frame();io.AddMouseButtonEvent(0,true);frame();io.AddMouseButtonEvent(0,false);return frame();
     };
+    Check(!SimpleSettings::FfxivReady(m), "partial FFXIV config is incomplete");
+    auto preset=click("ffxivPreset");
+    Check(preset.ffxivPreset && SimpleSettings::FfxivReady(m) && m.ratio==1.3f && m.upscaleRestart, "preset completes flags, preserves ratio, requests restart");
+    Check(!click("ffxivPreset").ffxivPreset, "configured preset is inert");
+    m.upscaleRestart=false;
     dump("simple-zh.rgba");
+    m.ratio=1.5f;m.drsMin=false;m.qualityOverride=true;
+    click("ratio");preset=click("ratio13");
+    Check(preset.ratio && SimpleSettings::FfxivReady(m) && m.ratio==1.3f && m.upscaleRestart, "ratio selection completes FFXIV settings and requests restart");
+    dump("simple-restart.rgba");
     auto a=click("nr");Check(a.nr && !m.nrEnabled,"NR off");a=click("nr");Check(a.nr && m.nrEnabled,"NR on");
     a=click("fg");Check(a.fg && !m.fgEnabled,"FG off");a=click("fg");Check(a.fg && m.fgEnabled,"FG on");
     a=click("showFps");Check(a.showFps && m.showFps,"FPS display toggle");
@@ -71,7 +80,7 @@ try {
     m.externalFg=true;frame();Check(!click("nr").nr,"disabled remains inert");m.externalFg=false;
     m.nrAvailable=m.nrEnabled=true;m.fgRouteActive=m.fgRouteConfigured=true;m.nrPercent=75;
     m.chinese=false;dump("simple-en.rgba");
-    m.chinese=true;viewScale=.7f;winSize=ImVec2(400,520);dump("simple-small.rgba");
+    m.chinese=true;viewScale=.7f;winSize=ImVec2(400,650);dump("simple-small.rgba");
     ImGui_ImplDX11_Shutdown();ImGui::DestroyContext();std::cout<<"ALL UI CHECKS PASSED\n";return 0;
 } catch(const std::exception& e){std::cerr<<"FAIL "<<e.what()<<"\n";return 1;}
 }

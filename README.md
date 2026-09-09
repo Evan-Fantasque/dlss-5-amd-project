@@ -1,4 +1,4 @@
-# FFXIV AMD NR 优化版 · test9
+# FFXIV AMD NR 优化版 · test10
 
 基于 [MatheusGViana/dlss-5-amd-project](https://github.com/MatheusGViana/dlss-5-amd-project) 的实验性 OptiScaler 分支，重点改善 FF14 中 AMD Neural Rendering 的随机超时和处理效率。
 
@@ -38,7 +38,7 @@ python tools/build.py --rebuild
 
 可用 `--vs`、`--sdk`、`--directx-headers` 指定其他安装位置。更换头文件或工具链后使用 `--rebuild` 重新生成预编译头。输出为 `src/x64/Release/OptiScaler.dll`；构建日志位于 `.build/`。本脚本不改动游戏安装目录。
 
-## 简易设置（test9）
+## 简易设置（test10）
 
 启动时不会弹出设置窗口。按原有菜单快捷键（默认 Insert）打开中文简易设置，只保留 FSR 超分倍率、FSR FG、DLSS5 开关、处理分辨率、色调与结构强度、帧率限制及帧率显示。菜单仍沿用原有快捷键设置。
 
@@ -46,9 +46,17 @@ python tools/build.py --rebuild
 
 AMD 路径的色调/结构强度连接到实际生效的参数；原生 NVIDIA `Intensity` 不用于这条 AMD 路径。肤质等细项保留在完整界面。
 
-滑块松开后应用，保存按钮写入现有 OptiScaler.ini。首次配置 FSR FG 需要保存并重启，之后可直接开关。1.0x 超分表示原生分辨率抗锯齿，关闭游戏超分需在游戏设置中操作。
+NR、风格强度和限帧滑块松开后应用，保存按钮写入现有 OptiScaler.ini。
 
-界面已通过完整 DLL 构建及离屏 DX11/WARP 交互检查，**test9 尚待实际游戏验证**。Dalamud 虚表模式是待验证的兼容性缓解方案，尚未标记为修复；旧 API 插件仍需更新。
+FFXIV 的超分倍率修改必须保存并重启游戏后生效。简易面板始终显示提醒，并在本次修改后持续提示重启；“已配置”只表示配置项齐全，不代表当前游戏已使用新倍率。
+
+“一键应用 FFXIV 必需设置”开启 Override all、DRS Override Minimum 和 Override Maximum，关闭分挡倍率覆盖，保留当前倍率。选择简易面板中的倍率也会自动补齐这些设置。上下限固定到所选倍率对应的渲染尺寸，避免游戏的动态分辨率范围影响倍率选择。简易面板不提供撤销必需项的开关；高级用户仍可在完整菜单调整。
+
+`config/ffxiv/OptiScaler.ini` 是首次安装的超分配置模板，默认 1.3x 并开启上述三项，其余选项采用插件默认值。已有配置请使用面板按钮，不要用模板覆盖自己的完整配置。模板不是完整依赖安装包。
+
+首次配置 FSR FG 需要保存并重启，之后可直接开关。1.0x 超分表示原生分辨率抗锯齿，关闭游戏超分需在游戏设置中操作。
+
+界面已通过完整 DLL 构建及离屏 DX11/WARP 交互检查，**test10 尚待实际游戏验证**。Dalamud 虚表模式是待验证的兼容性缓解方案，尚未标记为修复；旧 API 插件仍需更新。
 
 ## 使用
 
