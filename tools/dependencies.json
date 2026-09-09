@@ -1,0 +1,118 @@
+{
+  "repository": "optiscaler/OptiScaler",
+  "commit": "da70e61e1542a0b99adcb24168ff941e42109567",
+  "files": [
+    {
+      "path": "OptiScaler/library/d3dx/d3dx11.lib",
+      "sha256": "77268ebef609be985ce7882011ae549f8cf592e058ff8ea0cb27840f967de9a1"
+    },
+    {
+      "path": "OptiScaler/library/detours/detours.lib",
+      "sha256": "4f5d6f5b8a82c6609e45758d60bbdf29bfcb7956de1fd4454187a1b4a430b2f9"
+    },
+    {
+      "path": "OptiScaler/library/fsr2/ffx_fsr2_api_dx11_x64.lib",
+      "sha256": "09bae432b40540fd129e20b5a50ffdbc181eb66b3d35e0b2a581455ab739efc7"
+    },
+    {
+      "path": "OptiScaler/library/fsr2/ffx_fsr2_api_dx11_x64d.lib",
+      "sha256": "96f716e91ae45dfd9d398bd004deceb95345b4631dcce5320d70063203ed21de"
+    },
+    {
+      "path": "OptiScaler/library/fsr2/ffx_fsr2_api_dx12_x64.lib",
+      "sha256": "0af49bc7c5a660cc2fdbdd969c83b9337e66cfe87f76b8654e3e8e9694200026"
+    },
+    {
+      "path": "OptiScaler/library/fsr2/ffx_fsr2_api_dx12_x64d.lib",
+      "sha256": "fc75e44b90b49791f749a54c8fce0a850d340b4eb3338fc0b2eef7db0799d59f"
+    },
+    {
+      "path": "OptiScaler/library/fsr2/ffx_fsr2_api_vk_x64.lib",
+      "sha256": "e410a0e6ab0ad4bb1a1e1638cc723ad4087768777947129d6991ab05a3d1c094"
+    },
+    {
+      "path": "OptiScaler/library/fsr2/ffx_fsr2_api_vk_x64d.lib",
+      "sha256": "1f0a5bd06bc445cfdd2cd13bbac5b84a98131527fb63b1762c844312997dd1b2"
+    },
+    {
+      "path": "OptiScaler/library/fsr2/ffx_fsr2_api_x64.lib",
+      "sha256": "2755e4847ad9a648b305e3391abded44138588f30748ac36b63665740a6c855e"
+    },
+    {
+      "path": "OptiScaler/library/fsr2/ffx_fsr2_api_x64d.lib",
+      "sha256": "090df95a90a1030a34c693d17634b959e2639edd714643f924a4ac3af0fd62d4"
+    },
+    {
+      "path": "OptiScaler/library/fsr2_212/ffx_fsr2_212_api_dx12_x64.lib",
+      "sha256": "f6af216970b392656fa617e220059dc35863e6ee08b16494950415a89273925a"
+    },
+    {
+      "path": "OptiScaler/library/fsr2_212/ffx_fsr2_212_api_dx12_x64d.lib",
+      "sha256": "dcb25f748bc404225c04d8d6514f48971306a65e51e2aa8d8969512e059c68ec"
+    },
+    {
+      "path": "OptiScaler/library/fsr2_212/ffx_fsr2_212_api_vk_x64.lib",
+      "sha256": "0f993f9f34a686c64aaead36cae79d5ff3962f4079bcb9e01c64c691d0930175"
+    },
+    {
+      "path": "OptiScaler/library/fsr2_212/ffx_fsr2_212_api_vk_x64d.lib",
+      "sha256": "21453f5d4bec1ac31dbe609bd700bcfa0ce62b6cc8198e5c1c296f4a0661a813"
+    },
+    {
+      "path": "OptiScaler/library/fsr2_212/ffx_fsr2_212_api_x64.lib",
+      "sha256": "14803a9de847d103183f75e5ddd30d51fd159ae8f640fe62abfc6135b4aa4f76"
+    },
+    {
+      "path": "OptiScaler/library/fsr2_212/ffx_fsr2_212_api_x64d.lib",
+      "sha256": "7977ea82de834b57723827c60b6290a94aad234a9a76a018f66406c1513c626c"
+    },
+    {
+      "path": "OptiScaler/library/fsr31/ffx_backend_dx11_x64.lib",
+      "sha256": "896d2a92f37a431b15eb9c61c20e46aef1acc458fe7f984d36f7e4319ba24331"
+    },
+    {
+      "path": "OptiScaler/library/fsr31/ffx_backend_dx11_x64d.lib",
+      "sha256": "548889d7fe5ef266e6ab41901b81b7f6fbb0bd954115c1a5f13a2b33286bc588"
+    },
+    {
+      "path": "OptiScaler/library/fsr31/ffx_frameinterpolation_x64.lib",
+      "sha256": "5b2f9029bca011c64f6f3cd3a1022f221221db7cde6d0bf470097615bb7c68bb"
+    },
+    {
+      "path": "OptiScaler/library/fsr31/ffx_frameinterpolation_x64d.lib",
+      "sha256": "bd5577e3df317b0b66be174af3c492ed702a07f737eb619c2a49f93c9f8ad4df"
+    },
+    {
+      "path": "OptiScaler/library/fsr31/ffx_fsr3_x64.lib",
+      "sha256": "a841361195e77575689fe09f122a32cefc923afb62981d7ef03c42d6e660d958"
+    },
+    {
+      "path": "OptiScaler/library/fsr31/ffx_fsr3_x64d.lib",
+      "sha256": "7f820ea6bd7aa15fc15ac1926cfb95cd2c5841a3cd618b6d3d965bcaf9cab1a0"
+    },
+    {
+      "path": "OptiScaler/library/fsr31/ffx_fsr3upscaler_x64.lib",
+      "sha256": "40655550c2e433135d32c30313283cbc84d36be6665b4160cbcf9a44c586986d"
+    },
+    {
+      "path": "OptiScaler/library/fsr31/ffx_fsr3upscaler_x64d.lib",
+      "sha256": "d384603e59c0bfd8e6228b0668e6977107aa6c29563a964988a7426d1fa9cca4"
+    },
+    {
+      "path": "OptiScaler/library/fsr31/ffx_opticalflow_x64.lib",
+      "sha256": "5715f65f4a27387f17a8c9dd5abe6058fbae4d80f709e8a09c94a731ea5f016c"
+    },
+    {
+      "path": "OptiScaler/library/fsr31/ffx_opticalflow_x64d.lib",
+      "sha256": "ec559980276ac169242850422d72b857efea3f04ad5216fb522cb095296ba5e2"
+    },
+    {
+      "path": "OptiScaler/library/vulkan/vulkan-1.lib",
+      "sha256": "974ca389f1ab5cbbd39b5a757dfe9935e903d85dca253f847ef0a9c785c9eb5d"
+    },
+    {
+      "path": "external/freetype/freetype.lib",
+      "sha256": "74856e22714bf99f2f04e59cfe77d7c85729e5aa3570030b939048115ef528ad"
+    }
+  ]
+}
