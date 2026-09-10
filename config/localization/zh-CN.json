@@ -876,5 +876,6 @@
   "AMD NR requires both switches above and an active game upscaler. This switch does not change the upscaling algorithm.": "AMD 神经渲染必须同时开启上方两个开关，并且游戏正在运行超分。此项不会切换超分算法。",
   "AMD NR is disabled because apply before Super Resolution is off.": "当前 AMD 神经渲染未生效：请开启“AMD：在超分之前应用神经渲染”。",
   "AMD pre-SR: waiting for a DirectX 12 SR frame": "AMD 超分前神经渲染：等待 DirectX 12 超分画面",
-  "AMD pre-SR: waiting for resolution settings to settle": "AMD 超分前神经渲染：等待分辨率设置稳定"
+  "AMD pre-SR: waiting for resolution settings to settle": "AMD 超分前神经渲染：等待分辨率设置稳定",
+  "Negative values follow AMD structure (-1 is the default). Zero sets skin structure strength to zero; it does not disable all face or skin-colour changes.": "负数表示跟随 AMD 结构强度（默认为 -1）。0 将肤质结构强度设为零，但不会关闭全部脸部或肤色变化。"
 }

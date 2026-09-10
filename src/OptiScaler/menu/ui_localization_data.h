@@ -517,6 +517,7 @@ inline constexpr Translation translations[] = {
     {"Natural", "自然"},
     {"Near: %.1f Far: %.1f", "近端：%.1f 远端：%.1f"},
     {"Needs HUDless texture to compare with final image.\nUI elements and ONLY UI elements should have a pink tint!", "需要无界面画面与最终画面对比。只有界面元素应显示粉色！"},
+    {"Negative values follow AMD structure (-1 is the default). Zero sets skin structure strength to zero; it does not disable all face or skin-colour changes.", "负数表示跟随 AMD 结构强度（默认为 -1）。0 将肤质结构强度设为零，但不会关闭全部脸部或肤色变化。"},
     {"Network Models", "网络模型"},
     {"Neural Rendering", "神经渲染"},
     {"Neutwo proxy + composed", "Neutwo 映射＋合成"},

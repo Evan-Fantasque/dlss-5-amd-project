@@ -4,7 +4,7 @@ import argparse, hashlib, json, shutil, zipfile, subprocess, sys
 
 root = Path(__file__).resolve().parents[2]
 p = argparse.ArgumentParser()
-p.add_argument('--output', type=Path, default=root / '.build/installer/OptiScaler-AMD-test13-installer')
+p.add_argument('--output', type=Path, default=root / '.build/installer/OptiScaler-AMD-test14-installer')
 p.add_argument('--dll', type=Path, default=root / 'src/x64/Release/OptiScaler.dll')
 a = p.parse_args()
 subprocess.run([sys.executable, str(root / 'tools/localization.py'), '--check', '--binary', str(a.dll)], check=True)
@@ -19,7 +19,7 @@ for name in ('Install.ps1', 'INSTALL.bat', 'README.zh-CN.md'):
     shutil.copy2(root / 'tools/installer' / name, out / name)
 shutil.copy2(root / 'LICENSE', out / 'LICENSE')
 files = [dict(name=f.name, sha256=hashlib.sha256(f.read_bytes()).hexdigest()) for f in sorted((out / 'payload').iterdir())]
-manifest = dict(version='test13', files=files,
+manifest = dict(version='test14', files=files,
                 dependencies=json.loads((root / 'tools/installer/dependencies.json').read_text()))
 (out / 'package-manifest.json').write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')
 archive = out.with_suffix('.zip')

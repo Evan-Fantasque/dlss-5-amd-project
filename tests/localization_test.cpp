@@ -78,7 +78,7 @@ try {
             ImGui::SetNextItemWidth(160*viewScale);ImGui::SliderInt(MenuI18n::Label("AMD neural passes"),&passes,1,3);
             ImGui::SetNextItemWidth(160*viewScale);ImGui::SliderFloat(MenuI18n::Label("AMD tone (first pass)"),&tone,0,2);
             ImGui::SetNextItemWidth(160*viewScale);ImGui::SliderFloat(MenuI18n::Label("AMD structure"),&structure,0,2);
-            ImGui::SetNextItemWidth(160*viewScale);ImGui::SliderFloat(MenuI18n::Label("AMD skin structure"),&skin,0,2);
+            ImGui::SetNextItemWidth(160*viewScale);ImGui::SliderFloat(MenuI18n::Label("AMD skin structure"),&skin,-1,2);
             MenuI18nUI::TextWrapped("AMD pre-SR: waiting for a DirectX 12 SR frame");
             MenuI18nUI::TextWrapped("AMD backend. Use one neural pass for FSR FG testing. Each pass has independent history. Restart after a backend failure.");
             ImGui::EndTable();

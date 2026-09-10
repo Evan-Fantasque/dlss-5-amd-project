@@ -1,4 +1,4 @@
-# FF14 AMD DLSS5 优化版安装补丁 · test13
+# FF14 AMD DLSS5 优化版安装补丁 · test14
 
 完整解压本包，双击 **INSTALL.bat**，选择游戏目录中的 **ffxiv_dx11.exe**，核对目录并输入 Y。也可以把游戏目录或该 exe 拖到 INSTALL.bat 上。
 
@@ -41,3 +41,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Install.ps1 -GameDirec
 bat 只为当前安装进程临时使用 ExecutionPolicy Bypass，不会修改系统执行策略。脚本不自动申请管理员权限；如目录无写权限，请选择实际游戏目录并按需要以管理员身份运行。对使用目录链接的安装位置，请选择实际存放目录。
 
 文件完整性校验、模拟目录安装／备份／失败回退及日志开关检查通过。实际游戏仍需复测；与其他注入或覆盖层工具的兼容性未保证。
+
+## test14 菜单修正
+
+AMD 肤质结构强度滑条恢复为 -1～2，并补充悬停说明。所有负数均表示跟随 AMD 结构强度，默认 -1；0 并不关闭所有脸部或肤色变化。后端参数解释保持不变。已有 test13 用户只需退出游戏并替换 payload/winmm.dll，无需运行安装程序重置配置。

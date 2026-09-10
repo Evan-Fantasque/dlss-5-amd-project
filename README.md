@@ -1,4 +1,6 @@
-# FFXIV AMD NR 优化版 · test13
+# FFXIV AMD NR 优化版 · test14
+
+test14 修正 AMD 肤质结构滑条下限：允许选择默认的 -1（跟随整体结构强度），并解释负数和 0 的含义；后端保持原有语义，所有负数都跟随 LocalStructure。中文目录现为 879 条。已有安装只需替换 DLL，保留配置。实际游戏显示仍待复测。
 
 基于 [MatheusGViana/dlss-5-amd-project](https://github.com/MatheusGViana/dlss-5-amd-project) 的实验性 OptiScaler 分支，重点改善 FF14 中 AMD Neural Rendering 的随机超时和处理效率。
 

@@ -149,7 +149,8 @@ void RenderMenu(Config* config, float menuResScale)
             float skin = config->DlssNrSkinStructure.value_or_default();
             if (ImGui::SliderFloat(MenuI18n::Label("AMD tone (first pass)"), &tone, 0, 2)) config->DlssNrLocalTone = tone;
             if (ImGui::SliderFloat(MenuI18n::Label("AMD structure"), &structure, 0, 2)) config->DlssNrLocalStructure = structure;
-            if (ImGui::SliderFloat(MenuI18n::Label("AMD skin structure"), &skin, 0, 2)) config->DlssNrSkinStructure = skin;
+            if (ImGui::SliderFloat(MenuI18n::Label("AMD skin structure"), &skin, -1, 2)) config->DlssNrSkinStructure = skin;
+            HelpMarker("Negative values follow AMD structure (-1 is the default). Zero sets skin structure strength to zero; it does not disable all face or skin-colour changes.");
             MenuI18nUI::TextWrapped("%s", DlssNr::AmdBridge::Status().c_str());
             MenuI18nUI::TextWrapped("AMD backend. Use one neural pass for FSR FG testing. Each pass has independent history. Restart after a backend failure.");
             return;
