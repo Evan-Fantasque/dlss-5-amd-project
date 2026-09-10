@@ -3,7 +3,7 @@ from pathlib import Path
 import argparse,os,subprocess,sys
 root=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser()
-p.add_argument('target',nargs='?',default='product',choices=['product','smoke','cancel','split','worker','continuity','fence','menu'])
+p.add_argument('target',nargs='?',default='product',choices=['product','smoke','cancel','split','worker','continuity','fence','menu','logging'])
 p.add_argument('--vs',type=Path,help='Visual Studio installation directory')
 p.add_argument('--sdk',default='10.0.22621.0')
 p.add_argument('--rebuild',action='store_true',help='Rebuild all product objects, including precompiled headers')
@@ -36,6 +36,8 @@ names={'split':('split_test.cpp','split-test.exe'),'worker':('worker_completion_
        'continuity':('continuity_test.cpp','continuity-test.exe'),'fence':('fence_test.cpp','fence-test.exe')}
 if a.target in names:
     cpp,exe=names[a.target];sources=[tests/cpp]
+elif a.target=='logging':
+    sources=[tests/'logging_test.cpp',amd/'AmdPreSr.cpp'];exe='logging-test.exe'
 elif a.target=='cancel':
     original=(amd/'AmdPreSr.cpp').read_text(encoding='utf-8-sig');needle='if (split && !split->EndNative())'
     assert original.count(needle)==1

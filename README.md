@@ -1,4 +1,4 @@
-# FFXIV AMD NR 优化版 · test12
+# FFXIV AMD NR 优化版 · test13
 
 基于 [MatheusGViana/dlss-5-amd-project](https://github.com/MatheusGViana/dlss-5-amd-project) 的实验性 OptiScaler 分支，重点改善 FF14 中 AMD Neural Rendering 的随机超时和处理效率。
 
@@ -56,6 +56,22 @@ FFXIV 中请分别检查以下设置：
 `config/ffxiv/OptiScaler.ini` 仅为首次安装的倍率／DRS 模板，其余参数采用原有默认值；已有配置不要用此模板覆盖。它不是完整安装配置，也不会自动开启 AMD 超分前处理。
 
 test11 在游戏中发现中文显示为问号：正式 DLL 使用了系统默认执行字符集，而 ImGui 需要 UTF-8；不是缺少中文字库。test12 统一正式项目的 UTF-8 编译设置，并在每次构建后检查 DLL 中全部 878 条中文词条的实际字节。完整 Release DLL 构建、产物编码检查和离屏中文控件交互检查通过；**test12 尚待实际游戏验证**。兼容性问题仍处于验证阶段，未因本次本地化被标记为解决。
+
+## test13 安装工具与发布默认配置
+
+`tools/installer/` 提供双击运行的 INSTALL.bat 和 Windows PowerShell 5.1 安装脚本。安装包只替换 winmm.dll、OptiScaler.ini、amd_presr_perf.ini；验证原版 1.7.2 所需七个组件的 SHA-256，备份旧文件，中途失败时回退。支持 `-CheckOnly` 只检查模式，不自动下载依赖或提升权限。
+
+`config/ffxiv-release/` 为会重置已有设置的发布默认配置：FSR DX12 后端、1.3 倍超分、NR 75% 单轮、超分前 NR 开启、FG 关闭。保留 RequireUpscale=1；需要原生分辨率下运行 NR 时可改为 0 并重启，菜单阶段也可能随之运行 NR。
+
+Timing=0、DiagnosticStages=0、TextLog=0 及关闭 OptiScaler 日志输出，停止本分支可控制的性能 CSV、amd_presr.log 和主日志。第三方 runtime 仍可能生成独立日志；不承诺整个游戏目录完全无日志。TextLog 缺省为 1，保持旧诊断配置的行为，关闭写盘不影响 overlay 状态。
+
+```powershell
+python tools/build.py logging
+.build/tests/logging-test.exe
+python tools/installer/package.py
+```
+
+完整安装说明见 [安装包说明](tools/installer/README.zh-CN.md)。Windows 5.1 模拟目录安装、备份、只读检查、缺失／错误依赖拒绝、游戏运行拦截、第二个文件替换失败后的回退测试通过。日志开关及状态保留检查通过，Release DLL 的 878 条 UTF-8 词条校验通过。test13 实际游戏验证仍待进行。
 
 ## 使用
 

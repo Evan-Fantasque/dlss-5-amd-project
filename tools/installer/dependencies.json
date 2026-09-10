@@ -1,0 +1,30 @@
+[
+  {
+    "name": "dlssnr_amd_pass1.dll",
+    "sha256": "3c9ca13f0f5fc36a690ba424c457003bcfcc1080b4b785974cdd7e9ae2bc1dd8"
+  },
+  {
+    "name": "dlssnr_amd_pass2.dll",
+    "sha256": "3c9ca13f0f5fc36a690ba424c457003bcfcc1080b4b785974cdd7e9ae2bc1dd8"
+  },
+  {
+    "name": "dlssnr_amd_pass3.dll",
+    "sha256": "3c9ca13f0f5fc36a690ba424c457003bcfcc1080b4b785974cdd7e9ae2bc1dd8"
+  },
+  {
+    "name": "dlssnr_on_amd_weights.bin",
+    "sha256": "6bf8dc931ef3ccffe18c82de26ab374156e7f19539ffcf8eabaa25dca5cf15ab"
+  },
+  {
+    "name": "OptiScaler/amd_fidelityfx_loader_dx12.dll",
+    "sha256": "e2d85aa05a9bd9ed8b38935fdf5199372cca6f74c12015143bb6f945ee1608aa"
+  },
+  {
+    "name": "OptiScaler/amd_fidelityfx_upscaler_dx12.dll",
+    "sha256": "d0dcccc74a43c44ba435b7a369b456e0970d8a4464e4bd683119b374f2c9fb46"
+  },
+  {
+    "name": "OptiScaler/amd_fidelityfx_framegeneration_dx12.dll",
+    "sha256": "02297beedd285e822d3a64f314cf00faf378dcec0edc47ff0c4dd71b3a8c2f18"
+  }
+]

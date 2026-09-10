@@ -253,6 +253,7 @@ struct Backend::Impl
     void Log(const std::string& s)
     {
         status = s;
+        if (!perf.textLog) return;
         std::ofstream out(directory / L"amd_presr.log", std::ios::app);
         out << GetTickCount64() << " " << s << '\n';
     }

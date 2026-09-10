@@ -1,1 +1,1 @@
-#define VER_BUILD_COMMIT "58e9f6b-amd-zh-test12"
+#define VER_BUILD_COMMIT "65b80c6-amd-zh-test13"

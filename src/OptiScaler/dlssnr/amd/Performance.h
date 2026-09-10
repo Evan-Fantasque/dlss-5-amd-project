@@ -26,12 +26,14 @@ struct Options
 {
     // Opt-in because 1:1 temporal AA is also a valid NR use case. Read once; restart after editing INI.
     bool inputReady = false, timerResolution = false, timing = false, asyncSingle = false, requireUpscale = false, diagnosticStages = false, phasedSubmission = false;
+    bool textLog = true; // Preserve diagnostic behavior for existing INIs.
     static Options Read(const std::filesystem::path& directory)
     {
         const auto ini = directory / L"amd_presr_perf.ini";
         auto read = [&](const wchar_t* name) { return GetPrivateProfileIntW(L"Performance", name, 0, ini.c_str()) == 1; };
         return { read(L"WaitForDx11Input"), read(L"TimerResolution1ms"), read(L"Timing"),
-            GetPrivateProfileIntW(L"Performance", L"AsyncSinglePass", 0, ini.c_str()) != 0, read(L"RequireUpscale"), read(L"DiagnosticStages"), read(L"PhasedSubmission") };
+            GetPrivateProfileIntW(L"Performance", L"AsyncSinglePass", 0, ini.c_str()) != 0, read(L"RequireUpscale"), read(L"DiagnosticStages"), read(L"PhasedSubmission"),
+            GetPrivateProfileIntW(L"Performance", L"TextLog", 1, ini.c_str()) != 0 };
     }
 };
 // Balanced process request, never a registry or system-wide persistent setting.
