@@ -1,4 +1,4 @@
-# FFXIV AMD NR 优化版 · test10
+# FFXIV AMD NR 优化版 · test11
 
 基于 [MatheusGViana/dlss-5-amd-project](https://github.com/MatheusGViana/dlss-5-amd-project) 的实验性 OptiScaler 分支，重点改善 FF14 中 AMD Neural Rendering 的随机超时和处理效率。
 
@@ -38,25 +38,24 @@ python tools/build.py --rebuild
 
 可用 `--vs`、`--sdk`、`--directx-headers` 指定其他安装位置。更换头文件或工具链后使用 `--rebuild` 重新生成预编译头。输出为 `src/x64/Release/OptiScaler.dll`；构建日志位于 `.build/`。本脚本不改动游戏安装目录。
 
-## 简易设置（test10）
+## 中文原生完整菜单（test11）
 
-启动时不会弹出设置窗口。按原有菜单快捷键（默认 Insert）打开中文简易设置，只保留 FSR 超分倍率、FSR FG、DLSS5 开关、处理分辨率、色调与结构强度、帧率限制及帧率显示。菜单仍沿用原有快捷键设置。
+按原菜单快捷键（默认 Insert）直接打开中文原生完整菜单，启动时不会自动弹窗。保留全部原生选项、后端切换和应用按钮，撤下简易菜单与一键设置按钮。恢复完整菜单不会替用户修改游戏或已有配置。
 
-“打开原生完整设置”进入上游完整界面；其中的 “Back to simple settings” 可以返回。关闭菜单后再次用快捷键打开，默认回到简易界面。中文使用 Windows 系统字体；缺少可用中文字体时回退英文。窗口支持拖动、调整大小与滚动。
+FFXIV 中请分别检查以下设置：
 
-AMD 路径的色调/结构强度连接到实际生效的参数；原生 NVIDIA `Intensity` 不用于这条 AMD 路径。肤质等细项保留在完整界面。
+1. 游戏自身的超分选项选择 DLSS，菜单不会替你修改游戏选项。
+2. 在“超分辨率算法”中选择实际需要的 FSR 后端，并点击“切换超分算法”；游戏输入和插件输出是不同概念。FFXIV 默认 FSR2 和本分支默认 FSR 2.2 后端都不等于自动选好了目标后端。
+3. AMD DLSS5 需同时勾选“启用神经渲染（DLSS5）”及“AMD：在超分之前应用神经渲染”。后者关闭时会明确提示效果未生效。游戏还必须实际运行超分。
+4. 设定倍率时开启“覆盖全部挡位”和 DRS 的“覆盖最小分辨率／覆盖最大分辨率”，保存并重启游戏后生效。
 
-NR、风格强度和限帧滑块松开后应用，保存按钮写入现有 OptiScaler.ini。
+原生菜单保留 FSR／FG 全部设置、AMD NR 分辨率、处理轮数、色调、结构、肤质结构强度，以及锐化、低延迟、纹理、输入、快捷键和调试设置。AMD 参数按已有运行路径处理，NVIDIA 专属选项仍遵守原来的显示条件，不因翻译而启用。
 
-FFXIV 的超分倍率修改必须保存并重启游戏后生效。简易面板始终显示提醒，并在本次修改后持续提示重启；“已配置”只表示配置项齐全，不代表当前游戏已使用新倍率。
+已整理 878 条中文显示词条，包含选项、下拉项、状态和悬停说明。参数键、文件名、算法名称及原始运行日志保留原文。显示语言与设置值分离；使用 Windows 中文字体，缺少字体时回退英文。菜单尺寸限制在当前视口内，内容较多时可滚动。字体和缩放沿用原生设置。
 
-“一键应用 FFXIV 必需设置”开启 Override all、DRS Override Minimum 和 Override Maximum，关闭分挡倍率覆盖，保留当前倍率。选择简易面板中的倍率也会自动补齐这些设置。上下限固定到所选倍率对应的渲染尺寸，避免游戏的动态分辨率范围影响倍率选择。简易面板不提供撤销必需项的开关；高级用户仍可在完整菜单调整。
+`config/ffxiv/OptiScaler.ini` 仅为首次安装的倍率／DRS 模板，其余参数采用原有默认值；已有配置不要用此模板覆盖。它不是完整安装配置，也不会自动开启 AMD 超分前处理。
 
-`config/ffxiv/OptiScaler.ini` 是首次安装的超分配置模板，默认 1.3x 并开启上述三项，其余选项采用插件默认值。已有配置请使用面板按钮，不要用模板覆盖自己的完整配置。模板不是完整依赖安装包。
-
-首次配置 FSR FG 需要保存并重启，之后可直接开关。1.0x 超分表示原生分辨率抗锯齿，关闭游戏超分需在游戏设置中操作。
-
-界面已通过完整 DLL 构建及离屏 DX11/WARP 交互检查，**test10 尚待实际游戏验证**。Dalamud 虚表模式是待验证的兼容性缓解方案，尚未标记为修复；旧 API 插件仍需更新。
+完整 Release DLL 构建和离屏中文控件交互检查通过；**test11 尚待实际游戏验证**。兼容性问题仍处于验证阶段，未因本次本地化被标记为解决。
 
 ## 使用
 
@@ -76,8 +75,9 @@ python tools/build.py worker
 python tools/build.py continuity
 .build/tests/continuity-test.exe
 python tools/build.py smoke
+python tools/localization.py --check
 python tools/build.py menu
-.build/tests/simple-settings-test.exe
+.build/tests/localization-test.exe
 ```
 
 GPU 测试需 AMD HIP 7 和匹配 runtime/weights。将四个依赖文件放到被忽略的 `.runtime/`，或设置 `AMD_TEST_RUNTIME_DIR`。测试目录与依赖需在同一卷（使用硬链接）。
@@ -91,7 +91,7 @@ python tests/run_tests.py --case post-return-signal --run consumer --phased
 python tests/run_tests.py --case sync-default --run tail --phased --tail-sync --frames 2
 ```
 
-菜单测试只在独立 WARP 设备上渲染，检查交互并将 RGBA 预览写入 `.build/menu-preview/`，不连接游戏。
+菜单测试在独立 WARP 设备上检查本地化控件、隐藏标识符、数值选择、独立 AMD 开关和英文回退，将控件预览写入 `.build/menu-preview/`。预览是控件验证场景，不是完整菜单的实际游戏截图。
 
 每次使用新的 `--run` 名称，避免覆盖证据。测试专用 GPU 标志读回和故障注入不编入产品 DLL。
 

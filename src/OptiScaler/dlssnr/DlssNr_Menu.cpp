@@ -24,13 +24,13 @@ namespace DlssNr
 static void HelpMarker(const char* tip)
 {
     ImGui::SameLine();
-    ImGui::TextDisabled("(?)");
+    MenuI18nUI::TextDisabled("(?)");
 
     if (ImGui::IsItemHovered())
     {
         ImGui::BeginTooltip();
         ImGui::PushTextWrapPos(ImGui::GetFontSize() * 40.0f);
-        ImGui::TextUnformatted(tip);
+        MenuI18nUI::TextUnformatted(tip);
         ImGui::PopTextWrapPos();
         ImGui::EndTooltip();
     }
@@ -55,7 +55,7 @@ static bool DeferredSlider(const char* label, Option* opt, float mn, float mx,
     float value = it != pending.end() ? it->second : (opt->has_value() ? opt->value() : def);
     bool changed = false;
 
-    if (ImGui::SliderFloat(label, &value, mn, mx, fmt))
+    if (ImGui::SliderFloat(MenuI18n::Label(label), &value, mn, mx, fmt))
         pending[id] = value;
 
     if (ImGui::IsItemDeactivatedAfterEdit())
@@ -73,7 +73,7 @@ static bool DeferredSlider(const char* label, Option* opt, float mn, float mx,
     ImGui::SameLine();
 
     const std::string resetId = std::string("Reset##") + label;
-    if (ImGui::SmallButton(resetId.c_str()))
+    if (ImGui::SmallButton(MenuI18n::Label(resetId.c_str())))
     {
         if (inheritReset)
             *opt = std::optional<float> {};
@@ -96,7 +96,7 @@ static bool InheritedProfileCombo(const char* label, CustomOptional<uint32_t, No
     if (opt->has_value())
         selected = std::clamp((int) opt->value(), 0, nameCount - 2) + 1;
 
-    if (!ImGui::Combo(label, &selected, names, nameCount))
+    if (!MenuI18nUI::Combo(label, &selected, names, nameCount))
         return false;
 
     if (selected == 0)
@@ -118,18 +118,21 @@ void RenderMenu(Config* config, float menuResScale)
         ImGui::Spacing();
 
         bool enabled = config->DlssNrEnabled.value_or_default();
-        if (ImGui::Checkbox("Enable Neural Rendering", &enabled))
+        if (ImGui::Checkbox(MenuI18n::Label("Enable Neural Rendering"), &enabled))
             config->DlssNrEnabled = enabled;
 
         if (DlssNr::AmdBridge::HasFiles())
         {
             bool pre = config->DlssNrRunBeforeSr.value_or_default();
-            if (ImGui::Checkbox("AMD: apply before Super Resolution", &pre))
+            if (ImGui::Checkbox(MenuI18n::Label("AMD: apply before Super Resolution"), &pre))
                 config->DlssNrRunBeforeSr = pre;
+            HelpMarker("AMD NR requires both switches above and an active game upscaler. This switch does not change the upscaling algorithm.");
+            if (enabled && !pre)
+                MenuI18nUI::TextWrapped("AMD NR is disabled because apply before Super Resolution is off.");
             static float pendingScale = -1;
             float scale = pendingScale >= 0 ? pendingScale : config->AmdNrScale.value_or_default() * 100.f;
             if (!std::isfinite(scale)) scale = 100;
-            if (ImGui::SliderFloat("NR resolution (%)", &scale, 25, 100, "%.0f%%")) pendingScale = scale;
+            if (ImGui::SliderFloat(MenuI18n::Label("NR resolution (%)"), &scale, 25, 100, "%.0f%%")) pendingScale = scale;
             if (ImGui::IsItemDeactivatedAfterEdit() && pendingScale >= 0)
             {
                 config->AmdNrScale = std::clamp(pendingScale / 100.f, .25f, 1.f);
@@ -137,18 +140,18 @@ void RenderMenu(Config* config, float menuResScale)
             }
             HelpMarker("Independent neural input size. Lower values reduce work and may lose detail."
                        "\nThe game rendering resolution is preserved. Applied after releasing the slider.");
-            if (ImGui::SmallButton("Reset NR resolution")) { config->AmdNrScale = 1.f; pendingScale = -1; }
+            if (ImGui::SmallButton(MenuI18n::Label("Reset NR resolution"))) { config->AmdNrScale = 1.f; pendingScale = -1; }
             int passes = (int) config->DlssNrPasses.value_or_default();
-            if (ImGui::SliderInt("AMD neural passes", &passes, 1, 3))
+            if (ImGui::SliderInt(MenuI18n::Label("AMD neural passes"), &passes, 1, 3))
                 config->DlssNrPasses = (uint32_t) passes;
             float tone = config->DlssNrLocalTone.value_or_default();
             float structure = config->DlssNrLocalStructure.value_or_default();
             float skin = config->DlssNrSkinStructure.value_or_default();
-            if (ImGui::SliderFloat("AMD tone (first pass)", &tone, 0, 2)) config->DlssNrLocalTone = tone;
-            if (ImGui::SliderFloat("AMD structure", &structure, 0, 2)) config->DlssNrLocalStructure = structure;
-            if (ImGui::SliderFloat("AMD skin structure", &skin, 0, 2)) config->DlssNrSkinStructure = skin;
-            ImGui::TextWrapped("%s", DlssNr::AmdBridge::Status().c_str());
-            ImGui::TextWrapped("Test3 AMD backend. Use one neural pass for FSR FG testing. Each pass has independent history. Restart after a backend failure.");
+            if (ImGui::SliderFloat(MenuI18n::Label("AMD tone (first pass)"), &tone, 0, 2)) config->DlssNrLocalTone = tone;
+            if (ImGui::SliderFloat(MenuI18n::Label("AMD structure"), &structure, 0, 2)) config->DlssNrLocalStructure = structure;
+            if (ImGui::SliderFloat(MenuI18n::Label("AMD skin structure"), &skin, 0, 2)) config->DlssNrSkinStructure = skin;
+            MenuI18nUI::TextWrapped("%s", DlssNr::AmdBridge::Status().c_str());
+            MenuI18nUI::TextWrapped("AMD backend. Use one neural pass for FSR FG testing. Each pass has independent history. Restart after a backend failure.");
             return;
         }
 
@@ -159,7 +162,7 @@ void RenderMenu(Config* config, float menuResScale)
                    "\nUndocumented and driven directly, so none of this is officially supported.");
 
         bool beforeSr = config->DlssNrRunBeforeSr.value_or_default();
-        if (ImGui::Checkbox("Apply before Super Resolution", &beforeSr))
+        if (ImGui::Checkbox(MenuI18n::Label("Apply before Super Resolution"), &beforeSr))
             config->DlssNrRunBeforeSr = beforeSr;
 
         HelpMarker("Runs Neural Rendering on the render-resolution colour input immediately before"
@@ -171,7 +174,7 @@ void RenderMenu(Config* config, float menuResScale)
                    "\nDirect3D 11/Vulkan bridges; native Vulkan keeps the post-upscale path.");
 
         bool afterRR = config->DlssNrApplyAfterRR.value_or_default();
-        if (ImGui::Checkbox("Apply after Ray Reconstruction (DX12)", &afterRR))
+        if (ImGui::Checkbox(MenuI18n::Label("Apply after Ray Reconstruction (DX12)"), &afterRR))
             config->DlssNrApplyAfterRR = afterRR;
         HelpMarker("Requires the game's native Ray Reconstruction option. RR denoises and upscales"
                    "\nfirst; NR then processes its output before frame generation."
@@ -179,10 +182,10 @@ void RenderMenu(Config* config, float menuResScale)
                    "\nIndependent controls below prevent inheriting the cost of the SR configuration."
                    "\nNative Vulkan does not use these DX12 controls.");
         int rrPasses = (int) config->DlssNrRRPasses.value_or_default();
-        if (ImGui::SliderInt("NR passes after RR", &rrPasses, 1, (int) MaxPassCount))
+        if (ImGui::SliderInt(MenuI18n::Label("NR passes after RR"), &rrPasses, 1, (int) MaxPassCount))
             config->DlssNrRRPasses = (unsigned int) rrPasses;
         float rrScale = config->DlssNrRRWorkingScale.value_or_default();
-        if (ImGui::SliderFloat("NR model scale after RR", &rrScale, 0.25f, 2.0f, "%.2fx"))
+        if (ImGui::SliderFloat(MenuI18n::Label("NR model scale after RR"), &rrScale, 0.25f, 2.0f, "%.2fx"))
             config->DlssNrRRWorkingScale = rrScale;
         HelpMarker("Relative to RR's OUTPUT resolution: 0.50x at 4K runs NR at 1920x1080."
                    "\nRR itself remains full quality. The NR edit is resized for final composition."
@@ -190,10 +193,10 @@ void RenderMenu(Config* config, float menuResScale)
 
         // The toggle can be bound to a key, and nobody would think to look for it under Keybinds
         // unless told. Dimmed, because it is a note rather than a setting.
-        ImGui::TextDisabled("Can be toggled with a key -- bind it under Keybinds, \"Neural Rendering\".");
+        MenuI18nUI::TextDisabled("Can be toggled with a key -- bind it under Keybinds, \"Neural Rendering\".");
 
         bool applyModel = config->DlssNrApplyModel.value_or_default();
-        if (ImGui::Checkbox("Apply the model", &applyModel))
+        if (ImGui::Checkbox(MenuI18n::Label("Apply the model"), &applyModel))
             config->DlssNrApplyModel = applyModel;
 
         HelpMarker("Whether the model's edit is applied. Off shows the clean upscaler frame while the"
@@ -212,7 +215,7 @@ void RenderMenu(Config* config, float menuResScale)
         // moment it describes the frame before last.
         if (!enabled)
         {
-            ImGui::TextDisabled("Off. The model stays loaded, so turning this back on is immediate.");
+            MenuI18nUI::TextDisabled("Off. The model stays loaded, so turning this back on is immediate.");
         }
         else if (!DlssNr::IsRunning() && !vulkan)
         {
@@ -220,14 +223,14 @@ void RenderMenu(Config* config, float menuResScale)
 
             if (reason[0] != 0)
             {
-                ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.35f, 1.0f), "Off for this session: %s.", reason);
+                MenuI18nUI::TextColored(ImVec4(1.0f, 0.4f, 0.35f, 1.0f), "Off for this session: %s.", reason);
                 ImGui::SameLine();
 
-                if (ImGui::SmallButton("Retry"))
+                if (ImGui::SmallButton(MenuI18n::Label("Retry")))
                     DlssNr::RetryAfterFailure();
             }
             else if (enabled)
-                ImGui::TextUnformatted("Waiting for the upscaler to run.");
+                MenuI18nUI::TextUnformatted("Waiting for the upscaler to run.");
         }
         else
         {
@@ -245,19 +248,19 @@ void RenderMenu(Config* config, float menuResScale)
                 !config->DlssNrApplyModel.value_or_default() ? "  (model running, edit hidden)" : "";
 
             if (ms.has_value())
-                ImGui::TextColored(ImVec4(0.4f, 0.9f, 0.5f, 1.0f), "Running%s - %.2f ms per frame%s",
+                MenuI18nUI::TextColored(ImVec4(0.4f, 0.9f, 0.5f, 1.0f), "Running%s - %.2f ms per frame%s",
                                    vulkan ? " natively on Vulkan" : "", ms.value(), runSuffix);
             else if (vulkan)
                 // Measured but not yet read: the first few frames are still in the query ring.
-                ImGui::TextColored(ImVec4(0.4f, 0.9f, 0.5f, 1.0f), "Running natively on Vulkan - %llu frames%s",
+                MenuI18nUI::TextColored(ImVec4(0.4f, 0.9f, 0.5f, 1.0f), "Running natively on Vulkan - %llu frames%s",
                                    DlssNr::FramesVk(), runSuffix);
             else
-                ImGui::TextColored(ImVec4(0.4f, 0.9f, 0.5f, 1.0f), "Running.%s", runSuffix);
+                MenuI18nUI::TextColored(ImVec4(0.4f, 0.9f, 0.5f, 1.0f), "Running.%s", runSuffix);
 
             ImGui::SameLine();
-            ImGui::TextDisabled("(?)");
+            MenuI18nUI::TextDisabled("(?)");
             if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
-                ImGui::SetTooltip("The whole pass: the staging copies and the resolve as well as the"
+                MenuI18nUI::SetTooltip("The whole pass: the staging copies and the resolve as well as the"
                                   "\nmodel. Timing only the model would flatter the number."
                                   "\n\nCompare it against the frame time at the bottom of this window to"
                                   "\nsee what it is costing you.");
@@ -266,7 +269,7 @@ void RenderMenu(Config* config, float menuResScale)
         ImGui::Spacing();
         ImGui::PushItemWidth(220.0f * menuResScale);
 
-        ImGui::SeparatorText("Cost");
+        ImGui::SeparatorText(MenuI18n::Text("Cost"));
 
         {
             int passes = (int) std::clamp(config->DlssNrPasses.value_or_default(), 1u,
@@ -278,7 +281,7 @@ void RenderMenu(Config* config, float menuResScale)
             ImGui::PushStyleColor(ImGuiCol_Text, colour);
             ImGui::PushStyleColor(ImGuiCol_SliderGrab, colour);
 
-            if (ImGui::SliderInt("Model passes", &passes, 1, (int) DlssNr::MaxPassCount,
+            if (ImGui::SliderInt(MenuI18n::Label("Model passes"), &passes, 1, (int) DlssNr::MaxPassCount,
                                  passes == 1 ? "%d (normal)" : "%dx model cost"))
                 config->DlssNrPasses = (uint32_t) std::clamp(passes, 1, (int) DlssNr::MaxPassCount);
 
@@ -309,7 +312,7 @@ void RenderMenu(Config* config, float menuResScale)
                                ? pendingScale
                                : (int) lroundf(config->DlssNrWorkingScale.value_or_default() * 100.0f);
 
-        if (ImGui::SliderInt("Model resolution", &scalePercent, 25, 200, "%d%%"))
+        if (ImGui::SliderInt(MenuI18n::Label("Model resolution"), &scalePercent, 25, 200, "%d%%"))
             pendingScale = scalePercent;
 
         if (ImGui::IsItemDeactivatedAfterEdit() && pendingScale >= 0)
@@ -319,7 +322,7 @@ void RenderMenu(Config* config, float menuResScale)
         }
 
         if (scalePercent > 100)
-            ImGui::TextDisabled("Supersampling %.2fx: the model runs ABOVE native, then\n"
+            MenuI18nUI::TextDisabled("Supersampling %.2fx: the model runs ABOVE native, then\n"
                                 "is sampled back down. Experimental, and costly -- time grows with the area.",
                                 scalePercent / 100.0f);
 
@@ -331,7 +334,7 @@ void RenderMenu(Config* config, float menuResScale)
             if (ds < 0 || ds >= IM_ARRAYSIZE(dsNames))
                 ds = (int) Scaler::Lanczos3;
 
-            if (ImGui::Combo("Downscaler (NR)", &ds, dsNames, IM_ARRAYSIZE(dsNames)))
+            if (MenuI18nUI::Combo("Downscaler (NR)", &ds, dsNames, IM_ARRAYSIZE(dsNames)))
                 config->DlssNrScalingDownscaler = (Scaler) ds;
 
             HelpMarker("The filter that averages the model's above-native answer back to display size --"
@@ -363,7 +366,7 @@ void RenderMenu(Config* config, float menuResScale)
             static const char* enlargeNames[] = { "Classic", "Matched residual" };
             int enlarge = config->DlssNrTransfer.value_or_default() == 1 ? 1 : 0;
 
-            if (ImGui::Combo("Enlargement", &enlarge, enlargeNames, IM_ARRAYSIZE(enlargeNames)))
+            if (MenuI18nUI::Combo("Enlargement", &enlarge, enlargeNames, IM_ARRAYSIZE(enlargeNames)))
                 config->DlssNrTransfer = (uint32_t) enlarge;
 
             if (!reduced)
@@ -383,14 +386,14 @@ void RenderMenu(Config* config, float menuResScale)
                        "\n\nFrom hhkbble's multi-pass work on this fork.");
         }
 
-        ImGui::SeparatorText("How much of it lands");
+        ImGui::SeparatorText(MenuI18n::Text("How much of it lands"));
 
         float transfer = config->DlssNrTransferStrength.value_or_default();
-        if (ImGui::SliderFloat("Detail strength", &transfer, 0.0f, 2.0f, "%.2f"))
+        if (ImGui::SliderFloat(MenuI18n::Label("Detail strength"), &transfer, 0.0f, 2.0f, "%.2f"))
             config->DlssNrTransferStrength = transfer;
 
         ImGui::SameLine();
-        if (ImGui::SmallButton("Reset##detail"))
+        if (ImGui::SmallButton(MenuI18n::Label("Reset##detail")))
             config->DlssNrTransferStrength = 1.0f;
 
         HelpMarker("How far the frame moves toward the model's picture."
@@ -405,11 +408,11 @@ void RenderMenu(Config* config, float menuResScale)
                        "\nand it decides what to do with it.");
 
         float colour = config->DlssNrColourStrength.value_or_default();
-        if (ImGui::SliderFloat("Colour strength", &colour, 0.0f, 4.0f, "%.2f"))
+        if (ImGui::SliderFloat(MenuI18n::Label("Colour strength"), &colour, 0.0f, 4.0f, "%.2f"))
             config->DlssNrColourStrength = colour;
 
         ImGui::SameLine();
-        if (ImGui::SmallButton("Reset##colour"))
+        if (ImGui::SmallButton(MenuI18n::Label("Reset##colour")))
             config->DlssNrColourStrength = 1.0f;
 
         HelpMarker("Whether the model's colour arrives with its light."
@@ -432,7 +435,7 @@ void RenderMenu(Config* config, float menuResScale)
         int reversible = (int) config->DlssNrReversibleMode.value_or_default();
         if (reversible < 0 || reversible > 4)
             reversible = 0;
-        if (ImGui::Combo("Reversible proxy (experimental)", &reversible, reversibleNames,
+        if (MenuI18nUI::Combo("Reversible proxy (experimental)", &reversible, reversibleNames,
                          IM_ARRAYSIZE(reversibleNames)))
             config->DlssNrReversibleMode = (uint32_t) reversible;
 
@@ -456,15 +459,15 @@ void RenderMenu(Config* config, float menuResScale)
                        "\nstable. If you love the Replace look but the flicker bothers you, use this."
                        "\n\nOff is byte-identical to before.");
 
-        ImGui::SeparatorText("Model passes");
-        ImGui::TextWrapped("Each pass has its own style and model strengths. Changes apply when you release a slider.");
+        ImGui::SeparatorText(MenuI18n::Text("Model passes"));
+        MenuI18nUI::TextWrapped("Each pass has its own style and model strengths. Changes apply when you release a slider.");
         static const char* styles[] = { "Standard", "Natural", "Cinematic" };
         static const char* inheritedStyles[] = { "Auto (inherit pass 1)", "Standard", "Natural", "Cinematic" };
 
-        if (ImGui::TreeNodeEx("Pass 1", ImGuiTreeNodeFlags_DefaultOpen))
+        if (ImGui::TreeNodeEx(MenuI18n::Label("Pass 1"), ImGuiTreeNodeFlags_DefaultOpen))
         {
             int style = (int) std::min(config->DlssNrStyle.value_or_default(), 2u);
-            if (ImGui::Combo("Style", &style, styles, IM_ARRAYSIZE(styles)))
+            if (MenuI18nUI::Combo("Style", &style, styles, IM_ARRAYSIZE(styles)))
                 config->DlssNrStyle = (uint32_t) style;
             DeferredSlider("Intensity", &config->DlssNrIntensity, 0.0f, 2.0f, 1.0f);
             DeferredSlider("Local structure", &config->DlssNrLocalStructure, 0.0f, 2.0f, 1.0f);
@@ -473,7 +476,7 @@ void RenderMenu(Config* config, float menuResScale)
             HelpMarker("-1 follows local structure; 0 reduces skin structure independently."
                        "\nThis is not a skin-colour/tone off switch. Use the final skin/scene controls below for that.");
             bool mask = config->DlssNrAutoMask.value_or_default();
-            if (ImGui::Checkbox("Auto skin mask", &mask))
+            if (ImGui::Checkbox(MenuI18n::Label("Auto skin mask"), &mask))
                 config->DlssNrAutoMask = mask;
             HelpMarker("NVIDIA's internal automatic mask, not the colour-based preview below."
                        "\nWith Skin structure=-1 it follows general structure, so the difference may be subtle."
@@ -481,71 +484,71 @@ void RenderMenu(Config* config, float menuResScale)
             ImGui::TreePop();
         }
 
-        if (ImGui::TreeNodeEx("Pass 2", ImGuiTreeNodeFlags_DefaultOpen))
+        if (ImGui::TreeNodeEx(MenuI18n::Label("Pass 2"), ImGuiTreeNodeFlags_DefaultOpen))
         {
-            ImGui::TextWrapped("Unset controls inherit pass 1, except local tone which defaults to 0. Reset restores this behavior. Only active passes run.");
+            MenuI18nUI::TextWrapped("Unset controls inherit pass 1, except local tone which defaults to 0. Reset restores this behavior. Only active passes run.");
             InheritedProfileCombo("Style", &config->DlssNrPass2Style, inheritedStyles, IM_ARRAYSIZE(inheritedStyles));
             DeferredSlider("Intensity", &config->DlssNrPass2Intensity, 0.0f, 2.0f, config->DlssNrIntensity.value_or_default(), "%.2f", true);
             DeferredSlider("Local structure", &config->DlssNrPass2LocalStructure, 0.0f, 2.0f, config->DlssNrLocalStructure.value_or_default(), "%.2f", true);
             DeferredSlider("Local tone", &config->DlssNrPass2LocalTone, 0.0f, 2.0f, 0.0f, "%.2f", true);
             DeferredSlider("Skin structure", &config->DlssNrPass2SkinStructure, -1.0f, 2.0f, config->DlssNrSkinStructure.value_or_default(), "%.2f", true);
             bool mask = config->DlssNrPass2AutoMask.has_value() ? config->DlssNrPass2AutoMask.value() : config->DlssNrAutoMask.value_or_default();
-            if (ImGui::Checkbox("Auto skin mask", &mask))
+            if (ImGui::Checkbox(MenuI18n::Label("Auto skin mask"), &mask))
                 config->DlssNrPass2AutoMask = mask;
             ImGui::SameLine();
-            if (ImGui::SmallButton("Reset##mask"))
+            if (ImGui::SmallButton(MenuI18n::Label("Reset##mask")))
                 config->DlssNrPass2AutoMask = std::optional<bool> {};
             ImGui::TreePop();
         }
 
-        if (ImGui::TreeNodeEx("Pass 3", ImGuiTreeNodeFlags_DefaultOpen))
+        if (ImGui::TreeNodeEx(MenuI18n::Label("Pass 3"), ImGuiTreeNodeFlags_DefaultOpen))
         {
-            ImGui::TextWrapped("Unset controls inherit pass 1, except local tone which defaults to 0. Reset restores this behavior. Only active passes run.");
+            MenuI18nUI::TextWrapped("Unset controls inherit pass 1, except local tone which defaults to 0. Reset restores this behavior. Only active passes run.");
             InheritedProfileCombo("Style", &config->DlssNrPass3Style, inheritedStyles, IM_ARRAYSIZE(inheritedStyles));
             DeferredSlider("Intensity", &config->DlssNrPass3Intensity, 0.0f, 2.0f, config->DlssNrIntensity.value_or_default(), "%.2f", true);
             DeferredSlider("Local structure", &config->DlssNrPass3LocalStructure, 0.0f, 2.0f, config->DlssNrLocalStructure.value_or_default(), "%.2f", true);
             DeferredSlider("Local tone", &config->DlssNrPass3LocalTone, 0.0f, 2.0f, 0.0f, "%.2f", true);
             DeferredSlider("Skin structure", &config->DlssNrPass3SkinStructure, -1.0f, 2.0f, config->DlssNrSkinStructure.value_or_default(), "%.2f", true);
             bool mask = config->DlssNrPass3AutoMask.has_value() ? config->DlssNrPass3AutoMask.value() : config->DlssNrAutoMask.value_or_default();
-            if (ImGui::Checkbox("Auto skin mask", &mask))
+            if (ImGui::Checkbox(MenuI18n::Label("Auto skin mask"), &mask))
                 config->DlssNrPass3AutoMask = mask;
             ImGui::SameLine();
-            if (ImGui::SmallButton("Reset##mask"))
+            if (ImGui::SmallButton(MenuI18n::Label("Reset##mask")))
                 config->DlssNrPass3AutoMask = std::optional<bool> {};
             ImGui::TreePop();
         }
 
-        if (ImGui::TreeNode("Advanced preset hints (effect unverified)"))
+        if (ImGui::TreeNode(MenuI18n::Label("Advanced preset hints (effect unverified)")))
         {
-            ImGui::TextWrapped("These hints are passed to NVIDIA at creation, but their visual effect is unverified. Use Style for model profile selection. Existing INI hints are preserved.");
+            MenuI18nUI::TextWrapped("These hints are passed to NVIDIA at creation, but their visual effect is unverified. Use Style for model profile selection. Existing INI hints are preserved.");
             static const char* presets[] = { "Default", "Preset 1", "Preset 2", "Preset 3" };
             static const char* inheritedPresets[] = { "Auto (inherit pass 1)", "Default", "Preset 1", "Preset 2", "Preset 3" };
             int preset = (int) std::min(config->DlssNrPreset.value_or_default(), 3u);
-            if (ImGui::Combo("Pass 1 preset hint", &preset, presets, IM_ARRAYSIZE(presets)))
+            if (MenuI18nUI::Combo("Pass 1 preset hint", &preset, presets, IM_ARRAYSIZE(presets)))
                 config->DlssNrPreset = (uint32_t) preset;
             InheritedProfileCombo("Pass 2 preset hint", &config->DlssNrPass2Preset, inheritedPresets, IM_ARRAYSIZE(inheritedPresets));
             InheritedProfileCombo("Pass 3 preset hint", &config->DlssNrPass3Preset, inheritedPresets, IM_ARRAYSIZE(inheritedPresets));
             ImGui::TreePop();
         }
-        ImGui::TextWrapped("Per-pass overrides apply to the DX12 multipass path, including NR after RR. Native Vulkan and the driver-proxy backend remain single-pass.");
+        MenuI18nUI::TextWrapped("Per-pass overrides apply to the DX12 multipass path, including NR after RR. Native Vulkan and the driver-proxy backend remain single-pass.");
 
-        ImGui::SeparatorText("Colour");
+        ImGui::SeparatorText(MenuI18n::Text("Colour"));
 
-        if (ImGui::TreeNode("Skin and environment (final edit)"))
+        if (ImGui::TreeNode(MenuI18n::Label("Skin and environment (final edit)")))
         {
-            ImGui::TextWrapped("Optional colour-based selection, NOT NVIDIA's automatic skin mask. Warm scenery can be selected and coloured lighting can hide skin. Check the preview. These controls affect the combined result of all passes.");
+            MenuI18nUI::TextWrapped("Optional colour-based selection, NOT NVIDIA's automatic skin mask. Warm scenery can be selected and coloured lighting can hide skin. Check the preview. These controls affect the combined result of all passes.");
             bool filter = config->DlssNrSkinProtection.value_or_default();
-            if (ImGui::Checkbox("Separate skin / environment controls", &filter))
+            if (ImGui::Checkbox(MenuI18n::Label("Separate skin / environment controls"), &filter))
                 config->DlssNrSkinProtection = filter;
             ImGui::BeginDisabled(!filter);
             bool tone = config->DlssNrSkinToneEnabled.value_or_default();
-            if (ImGui::Checkbox("Allow skin tone / colour changes", &tone))
+            if (ImGui::Checkbox(MenuI18n::Label("Allow skin tone / colour changes"), &tone))
                 config->DlssNrSkinToneEnabled = tone;
             HelpMarker("Off preserves colour in selected pixels; lighting/detail can still change."
                        "\nAlso set Skin detail / lighting to 0 to suppress both.");
             const auto slider = [](const char* label, auto& option) {
                 float v = option.value_or_default();
-                if (ImGui::SliderFloat(label, &v, 0.0f, 1.0f, "%.2f"))
+                if (ImGui::SliderFloat(MenuI18n::Label(label), &v, 0.0f, 1.0f, "%.2f"))
                     option = v;
             };
             slider("Skin detail / lighting", config->DlssNrSkinDetail);
@@ -555,13 +558,13 @@ void RenderMenu(Config* config, float menuResScale)
             slider("Environment detail / lighting", config->DlssNrEnvironmentDetail);
             slider("Environment colour", config->DlssNrEnvironmentColour);
             bool preview = config->DlssNrShowSkinMask.value_or_default();
-            if (ImGui::Checkbox("Preview colour-based mask", &preview))
+            if (ImGui::Checkbox(MenuI18n::Label("Preview colour-based mask"), &preview))
                 config->DlssNrShowSkinMask = preview;
             ImGui::EndDisabled();
             ImGui::TreePop();
         }
 
-        ImGui::TextDisabled("The model was trained on finished, sRGB-encoded frames. The upscaler's\n"
+        MenuI18nUI::TextDisabled("The model was trained on finished, sRGB-encoded frames. The upscaler's\n"
                             "output is not one: it is linear and open-ended. These decide how it is\n"
                             "mapped into something the model recognises. A frame the game reports as\n"
                             "already tone-mapped is passed over untouched and none of this applies.");
@@ -600,7 +603,7 @@ void RenderMenu(Config* config, float menuResScale)
             if (source < 0 || source > 2)
                 source = 0;
 
-            if (ImGui::Combo("White point from", &source, sourceNames, IM_ARRAYSIZE(sourceNames)))
+            if (MenuI18nUI::Combo("White point from", &source, sourceNames, IM_ARRAYSIZE(sourceNames)))
             {
                 config->DlssNrWhitePointSource = (uint32_t) source;
 
@@ -627,25 +630,25 @@ void RenderMenu(Config* config, float menuResScale)
             if (source == 1)
             {
                 if (!vk && ex.seenFrames == 0)
-                    ImGui::TextDisabled("Waiting for a frame...");
+                    MenuI18nUI::TextDisabled("Waiting for a frame...");
                 else if (!haveExposure)
-                    ImGui::TextColored(ImVec4(0.9f, 0.6f, 0.25f, 1.0f),
+                    MenuI18nUI::TextColored(ImVec4(0.9f, 0.6f, 0.25f, 1.0f),
                                        "This game supplies no exposure -- paper white is in use. Try "
                                        "the scan instead.");
                 else if (vk)
-                    ImGui::TextColored(ImVec4(0.45f, 0.8f, 0.45f, 1.0f),
+                    MenuI18nUI::TextColored(ImVec4(0.45f, 0.8f, 0.45f, 1.0f),
                                        "This game supplies an exposure and it is being read.");
                 else if (ex.exposure > 1e-6f)
                 {
                     const float trim =
                         std::clamp(config->DlssNrWhitePointTrim.value_or_default(), 0.25f, 4.0f);
-                    ImGui::TextColored(ImVec4(0.45f, 0.8f, 0.45f, 1.0f),
+                    MenuI18nUI::TextColored(ImVec4(0.45f, 0.8f, 0.45f, 1.0f),
                                        "Game exposure %.4f  ->  white point %.2f%s", ex.exposure,
                                        ex.preExposure / ex.exposure * trim,
                                        ex.offeredNow ? "" : "  (held: absent this frame)");
                 }
                 else
-                    ImGui::TextDisabled("Reading the exposure...");
+                    MenuI18nUI::TextDisabled("Reading the exposure...");
             }
             else if (source == 2)
             {
@@ -658,15 +661,15 @@ void RenderMenu(Config* config, float menuResScale)
                     const unsigned int watching = (unsigned int) DlssNr::ExposureScan::Report().size();
 
                     if (watching == 0)
-                        ImGui::TextColored(ImVec4(0.9f, 0.6f, 0.25f, 1.0f),
+                        MenuI18nUI::TextColored(ImVec4(0.9f, 0.6f, 0.25f, 1.0f),
                                            "Nothing in this game is shaped like an exposure.");
                     else
-                        ImGui::TextColored(ImVec4(0.9f, 0.6f, 0.25f, 1.0f),
+                        MenuI18nUI::TextColored(ImVec4(0.9f, 0.6f, 0.25f, 1.0f),
                                            "Watching %u, none moving yet -- go between light and shade.",
                                            watching);
                 }
                 else if (!haveAnchor)
-                    ImGui::TextColored(ImVec4(0.9f, 0.6f, 0.25f, 1.0f),
+                    MenuI18nUI::TextColored(ImVec4(0.9f, 0.6f, 0.25f, 1.0f),
                                        "Found one. Set paper white below until the picture looks "
                                        "right, then press Anchor here.");
                 // Once anchored, the scan -> white point readout sits above the sliders below; it is
@@ -674,7 +677,7 @@ void RenderMenu(Config* config, float menuResScale)
             }
             else if (haveExposure)
             {
-                ImGui::TextColored(ImVec4(0.45f, 0.8f, 0.45f, 1.0f),
+                MenuI18nUI::TextColored(ImVec4(0.45f, 0.8f, 0.45f, 1.0f),
                                    "This game supplies an exposure -- the option above would use it.");
             }
         }
@@ -747,7 +750,7 @@ void RenderMenu(Config* config, float menuResScale)
                         liveScan, config->DlssNrScanInverted.value_or_default(),
                         config->DlssNrScanTrim.value_or_default());
 
-                    ImGui::TextColored(ImVec4(0.45f, 0.8f, 0.45f, 1.0f),
+                    MenuI18nUI::TextColored(ImVec4(0.45f, 0.8f, 0.45f, 1.0f),
                                        "Scan %.5f  ->  white point %.2f   (%u point%s)", liveScan, w,
                                        (unsigned) anchors.size(), anchors.size() == 1 ? "" : "s");
                 }
@@ -770,7 +773,7 @@ void RenderMenu(Config* config, float menuResScale)
                 else
                     snprintf(lbl, sizeof(lbl), "Paper white");
 
-                if (ImGui::SliderFloat(lbl, &pw, 0.25f, 2000.0f, "%.2fx", ImGuiSliderFlags_Logarithmic))
+                if (ImGui::SliderFloat(MenuI18n::Label(lbl), &pw, 0.25f, 2000.0f, "%.2fx", ImGuiSliderFlags_Logarithmic))
                 {
                     if (editingRow)
                     {
@@ -796,13 +799,13 @@ void RenderMenu(Config* config, float menuResScale)
             {
                 float trim = config->DlssNrScanTrim.value_or_default();
 
-                if (ImGui::SliderFloat("Trim (x the scan)", &trim, 0.25f, 4.0f, "%.2fx",
+                if (ImGui::SliderFloat(MenuI18n::Label("Trim (x the scan)"), &trim, 0.25f, 4.0f, "%.2fx",
                                        ImGuiSliderFlags_Logarithmic))
                     config->DlssNrScanTrim = std::clamp(trim, 0.25f, 4.0f);
 
                 ImGui::SameLine();
 
-                if (ImGui::SmallButton("Reset##scantrim"))
+                if (ImGui::SmallButton(MenuI18n::Label("Reset##scantrim")))
                     config->DlssNrScanTrim = 1.0f;
 
                 HelpMarker("A multiplier on the scan's white point, and the control you adjust between"
@@ -818,7 +821,7 @@ void RenderMenu(Config* config, float menuResScale)
             float trim = ofScan ? config->DlssNrScanTrim.value_or_default()
                                 : config->DlssNrWhitePointTrim.value_or_default();
 
-            if (ImGui::SliderFloat(ofScan ? "Trim (x the scan)" : "Trim (x the game's exposure)", &trim,
+            if (ImGui::SliderFloat(MenuI18n::Label(ofScan ? "Trim (x the scan)" : "Trim (x the game's exposure)"), &trim,
                                    0.25f, 4.0f, "%.2fx", ImGuiSliderFlags_Logarithmic))
             {
                 if (ofScan)
@@ -831,7 +834,7 @@ void RenderMenu(Config* config, float menuResScale)
 
             // Deliberately always present rather than greyed at 1. The point of it is that the safe
             // value is one click away without having to know what the safe value is.
-            if (ImGui::SmallButton("Reset##wptrim"))
+            if (ImGui::SmallButton(MenuI18n::Label("Reset##wptrim")))
             {
                 if (ofScan)
                     config->DlssNrScanTrim = 1.0f;
@@ -858,7 +861,7 @@ void RenderMenu(Config* config, float menuResScale)
             // of anything that can be bounded here. One tester was still improving at 100.
             float wpScale = config->DlssNrWhitePointScale.value_or_default();
 
-            if (ImGui::SliderFloat("Paper white", &wpScale, 0.25f, 2000.0f, "%.2fx",
+            if (ImGui::SliderFloat(MenuI18n::Label("Paper white"), &wpScale, 0.25f, 2000.0f, "%.2fx",
                                    ImGuiSliderFlags_Logarithmic))
                 config->DlssNrWhitePointScale = wpScale;
 
@@ -887,11 +890,11 @@ void RenderMenu(Config* config, float menuResScale)
         // Highlight guard, directly under the white point / trim -- it bounds the model's edit and
         // belongs with the exposure controls it works alongside.
         float maxRatio = config->DlssNrMaxRatio.value_or_default();
-        if (ImGui::SliderFloat("Highlight guard", &maxRatio, 1.0f, 8.0f, "%.1fx"))
+        if (ImGui::SliderFloat(MenuI18n::Label("Highlight guard"), &maxRatio, 1.0f, 8.0f, "%.1fx"))
             config->DlssNrMaxRatio = maxRatio;
 
         ImGui::SameLine();
-        if (ImGui::SmallButton("Reset##guard"))
+        if (ImGui::SmallButton(MenuI18n::Label("Reset##guard")))
             config->DlssNrMaxRatio = 2.0f;
 
         HelpMarker("The most the pass may move any pixel, as a multiple of what it already was, in"
@@ -930,7 +933,7 @@ void RenderMenu(Config* config, float menuResScale)
                 bool meter = config->DlssNrScanMeter.value_or_default();
 
                 if (config->DlssNrWhitePointSource.value_or_default() == 2 &&
-                    ImGui::Checkbox("Show the light meter on screen", &meter))
+                    ImGui::Checkbox(MenuI18n::Label("Show the light meter on screen"), &meter))
                     config->DlssNrScanMeter = meter;
 
                 HelpMarker("A lamp in the corner: red for dark, green for full light, and the"
@@ -964,7 +967,7 @@ void RenderMenu(Config* config, float menuResScale)
                 // chosen source and it currently has a value to capture.
                 ImGui::BeginDisabled(live <= 0.0f || !isSource);
 
-                if (ImGui::Button("Anchor here"))
+                if (ImGui::Button(MenuI18n::Label("Anchor here")))
                 {
                     // What to capture. Before the first point, the paper white above (an absolute value
                     // with the wide range a fresh game needs). After that, the EFFECTIVE white point the
@@ -1003,7 +1006,7 @@ void RenderMenu(Config* config, float menuResScale)
                                "\nand the numbers are the same for everyone who takes the profile.");
 
                 if (!isSource)
-                    ImGui::TextDisabled("(the scan is only watching -- the white point above comes "
+                    MenuI18nUI::TextDisabled("(the scan is only watching -- the white point above comes "
                                         "from somewhere else)");
 
                 if (!anchors.empty())
@@ -1030,7 +1033,7 @@ void RenderMenu(Config* config, float menuResScale)
                         ImGui::PushID((int) i);
 
                         // Delete first, so its click is never swallowed by the row-wide Selectable.
-                        if (ImGui::SmallButton("x"))
+                        if (ImGui::SmallButton(MenuI18n::Label("x")))
                         {
                             DlssNr::ExposureScan::AnchorRemove((int) i);
                             config->DlssNrScanAnchors = DlssNr::ExposureScan::SerializeAnchors();
@@ -1052,13 +1055,13 @@ void RenderMenu(Config* config, float menuResScale)
 
                         // Click selects the row (slider edits it); click again deselects (slider
                         // returns to the live unanchored point).
-                        if (ImGui::Selectable(row, sel))
+                        if (ImGui::Selectable(MenuI18n::Label(row), sel))
                             selectedAnchor = sel ? -1 : (int) i;
 
                         ImGui::PopID();
                     }
 
-                    ImGui::TextDisabled("Click a row to edit it with the slider above; click it again"
+                    MenuI18nUI::TextDisabled("Click a row to edit it with the slider above; click it again"
                                         " to control the live point. > is the point in use now.");
                 }
 
@@ -1067,7 +1070,7 @@ void RenderMenu(Config* config, float menuResScale)
                 if (anchors.size() == 1)
                 {
                     bool inverted = config->DlssNrScanInverted.value_or_default();
-                    if (ImGui::Checkbox("The number runs the other way", &inverted))
+                    if (ImGui::Checkbox(MenuI18n::Label("The number runs the other way"), &inverted))
                         config->DlssNrScanInverted = inverted;
 
                     HelpMarker("Flip this if the picture gets worse in the direction it should be"
@@ -1082,7 +1085,7 @@ void RenderMenu(Config* config, float menuResScale)
                 // Everything below is read-out rather than control: what the scan is looking at and
                 // how to tell whether it found the right thing. Folded away because the two decisions
                 // that matter -- anchor, and which way the number runs -- are above it.
-                if (ImGui::TreeNode("Advanced"))
+                if (ImGui::TreeNode(MenuI18n::Label("Advanced")))
                 {
 
                     const auto found = DlssNr::ExposureScan::Report();
@@ -1090,7 +1093,7 @@ void RenderMenu(Config* config, float menuResScale)
 
                     if (found.empty())
                     {
-                        ImGui::TextDisabled("%s", why != nullptr && why[0] != 0
+                        MenuI18nUI::TextDisabled("%s", why != nullptr && why[0] != 0
                                                       ? why
                                                       : "nothing matched yet.");
                     }
@@ -1102,20 +1105,20 @@ void RenderMenu(Config* config, float menuResScale)
 
                             if (c.reads == 0)
                             {
-                                ImGui::TextDisabled("%zu. %s -- not read yet", i + 1, c.shape.c_str());
+                                MenuI18nUI::TextDisabled("%zu. %s -- not read yet", i + 1, c.shape.c_str());
                                 continue;
                             }
 
                             // Moving is the whole signal, so it is the thing that is coloured.
-                            ImGui::TextColored(c.moves ? ImVec4(0.45f, 0.8f, 0.45f, 1.0f)
+                            MenuI18nUI::TextColored(c.moves ? ImVec4(0.45f, 0.8f, 0.45f, 1.0f)
                                                        : ImVec4(0.6f, 0.6f, 0.6f, 1.0f),
                                                "%zu. %s = %.5f  (seen %.5f..%.5f) %s", i + 1,
                                                c.shape.c_str(), c.latest, c.lowest, c.highest,
                                                c.moves ? "MOVES" : "flat so far");
                         }
 
-                        ImGui::TextDisabled("Walk from shade into daylight. A real exposure moves.");
-                        ImGui::TextDisabled("One that only ever climbs is a counter, not an exposure.");
+                        MenuI18nUI::TextDisabled("Walk from shade into daylight. A real exposure moves.");
+                        MenuI18nUI::TextDisabled("One that only ever climbs is a counter, not an exposure.");
                     }
 
                     ImGui::TreePop();
@@ -1126,13 +1129,13 @@ void RenderMenu(Config* config, float menuResScale)
 
         }
 
-        ImGui::SeparatorText("Compare");
+        ImGui::SeparatorText(MenuI18n::Text("Compare"));
 
         // Freeze the frame the model works on, so a setting change re-renders it in place -- the only
         // clean way to A/B our own settings (a moving scene confounds every other comparison). See
         // design/frame-hold.md.
         bool held = config->DlssNrHoldFrame.value_or_default();
-        if (ImGui::Checkbox("Hold frame", &held))
+        if (ImGui::Checkbox(MenuI18n::Label("Hold frame"), &held))
             config->DlssNrHoldFrame = held;
 
         HelpMarker("Freezes the frame the model works on. While held, change paper white, the"
@@ -1147,7 +1150,7 @@ void RenderMenu(Config* config, float menuResScale)
 
         static const char* compareNames[] = { "Off", "Side by side", "Wipe" };
         int compare = (int) config->DlssNrCompare.value_or_default();
-        if (ImGui::Combo("Compare", &compare, compareNames, IM_ARRAYSIZE(compareNames)))
+        if (MenuI18nUI::Combo("Compare", &compare, compareNames, IM_ARRAYSIZE(compareNames)))
             config->DlssNrCompare = (uint32_t) compare;
 
         HelpMarker("Shows the pass against itself, so the two can be seen at once rather than"
@@ -1163,11 +1166,11 @@ void RenderMenu(Config* config, float menuResScale)
         if (compare != 0)
         {
             bool swap = config->DlssNrCompareSwap.value_or_default();
-            if (ImGui::Checkbox("Swap sides", &swap))
+            if (ImGui::Checkbox(MenuI18n::Label("Swap sides"), &swap))
                 config->DlssNrCompareSwap = swap;
 
             bool tags = config->DlssNrCompareTags.value_or_default();
-            if (ImGui::Checkbox("Label the sides", &tags))
+            if (ImGui::Checkbox(MenuI18n::Label("Label the sides"), &tags))
                 config->DlssNrCompareTags = tags;
 
             HelpMarker("Writes which side is which onto the frame itself, so a screenshot still"
@@ -1179,7 +1182,7 @@ void RenderMenu(Config* config, float menuResScale)
             if (tags)
             {
                 float tagScale = config->DlssNrTagScale.value_or_default();
-                if (ImGui::SliderFloat("Label size", &tagScale, 0.5f, 5.0f, "%.1fx"))
+                if (ImGui::SliderFloat(MenuI18n::Label("Label size"), &tagScale, 0.5f, 5.0f, "%.1fx"))
                     config->DlssNrTagScale = std::clamp(tagScale, 0.5f, 5.0f);
             }
 
@@ -1193,7 +1196,7 @@ void RenderMenu(Config* config, float menuResScale)
         if (compare == 1)
         {
             float zoom = config->DlssNrCompareZoom.value_or_default();
-            if (ImGui::SliderFloat("Zoom", &zoom, 1.0f, 2.0f, "%.2f"))
+            if (ImGui::SliderFloat(MenuI18n::Label("Zoom"), &zoom, 1.0f, 2.0f, "%.2f"))
                 config->DlssNrCompareZoom = std::clamp(zoom, 1.0f, 2.0f);
 
             HelpMarker("How much of the frame each half shows."
@@ -1207,7 +1210,7 @@ void RenderMenu(Config* config, float menuResScale)
         if (compare == 2)
         {
             float split = config->DlssNrCompareSplit.value_or_default();
-            if (ImGui::SliderFloat("Split", &split, 0.0f, 1.0f, "%.2f"))
+            if (ImGui::SliderFloat(MenuI18n::Label("Split"), &split, 0.0f, 1.0f, "%.2f"))
                 config->DlssNrCompareSplit = std::clamp(split, 0.0f, 1.0f);
 
             HelpMarker("Where the wipe cuts. Left of it is the frame as the upscaler produced it,"
@@ -1217,7 +1220,7 @@ void RenderMenu(Config* config, float menuResScale)
         static const char* debugNames[] = { "Off", "Proxy (what the model sees)", "Model output (raw)",
                                             "Difference (amplified)" };
         int debugView = (int) config->DlssNrDebugView.value_or_default();
-        if (ImGui::Combo("Debug view", &debugView, debugNames, IM_ARRAYSIZE(debugNames)))
+        if (MenuI18nUI::Combo("Debug view", &debugView, debugNames, IM_ARRAYSIZE(debugNames)))
             config->DlssNrDebugView = (uint32_t) debugView;
 
         HelpMarker("Proxy is the picture handed to the model -- if that looks wrong, the white point"

@@ -1,6 +1,7 @@
 ﻿#include "pch.h"
 #include "menu_common.h"
-#include "simple_settings.h"
+#include "ui_localization.h"
+#include "native_menu_hints.h"
 #include <dlssnr/amd/AmdBridge.h>
 #include <fstream>
 #include <dlssnr/DlssNr_ExposureScan.h>
@@ -67,15 +68,11 @@ static bool xefgInitTried = false;
 static std::string windowTitle;
 static std::string selectedUpscalerName = "";
 static Upscaler currentBackend = Upscaler::Reset;
-static bool showFullSettings = false;
-static ImFont* simpleFont = nullptr;
-static SimpleSettings::EditState simpleEdits;
-static int simpleSaveResult = 0;
-static bool simpleUpscaleRestart = false;
+static ImFont* chineseFont = nullptr;
 
-static void LoadSimpleSettingsFont(ImGuiIO& io)
+static void LoadChineseMenuFont(ImGuiIO& io)
 {
-    if (simpleFont != nullptr) return;
+    if (chineseFont != nullptr) return;
     if (io.Fonts->Fonts.empty()) io.Fonts->AddFontDefault();
     wchar_t windows[MAX_PATH] {};
     const UINT length = GetWindowsDirectoryW(windows, MAX_PATH);
@@ -93,8 +90,8 @@ static void LoadSimpleSettingsFont(ImGuiIO& io)
         if (!file.read(static_cast<char*>(data), static_cast<std::streamsize>(size)))
         { ImGui::MemFree(data); continue; }
         // The atlas owns the data; glyphs are baked on demand by the existing renderer.
-        simpleFont = io.Fonts->AddFontFromMemoryTTF(data, static_cast<int>(size), 18.f);
-        if (simpleFont != nullptr) break;
+        chineseFont = io.Fonts->AddFontFromMemoryTTF(data, static_cast<int>(size), 18.f);
+        if (chineseFont != nullptr) break;
     }
 }
 static std::string currentBackendName = "";
@@ -269,11 +266,11 @@ inline std::string StrFmt(const char* fmt, ...)
 {
     va_list args;
     va_start(args, fmt);
-    int len = std::vsnprintf(nullptr, 0, fmt, args);
+    int len = std::vsnprintf(nullptr, 0, MenuI18n::Text(fmt), args);
     va_end(args);
     std::string out(len, '\0');
     va_start(args, fmt);
-    std::vsnprintf(out.data(), len + 1, fmt, args);
+    std::vsnprintf(out.data(), len + 1, MenuI18n::Text(fmt), args);
     va_end(args);
     return out;
 }
@@ -327,7 +324,9 @@ void MenuCommon::ShowTooltip(const char* tip)
     if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
     {
         ImGui::BeginTooltip();
-        ImGui::Text(tip);
+        ImGui::PushTextWrapPos(ImGui::GetFontSize() * 40.f);
+        MenuI18nUI::TextUnformatted(tip);
+        ImGui::PopTextWrapPos();
         ImGui::EndTooltip();
     }
 }
@@ -335,7 +334,7 @@ void MenuCommon::ShowTooltip(const char* tip)
 void MenuCommon::ShowHelpMarker(const char* tip)
 {
     ImGui::SameLine();
-    ImGui::TextDisabled("(?)");
+    MenuI18nUI::TextDisabled("(?)");
     ShowTooltip(tip);
 }
 
@@ -345,7 +344,7 @@ void MenuCommon::ShowResetButton(CustomOptional<bool, NoDefault>* initFlag, std:
 
     ImGui::BeginDisabled(!initFlag->has_value());
 
-    if (ImGui::Button(buttonName.c_str()))
+    if (ImGui::Button(MenuI18n::Label(buttonName.c_str())))
     {
         initFlag->reset();
         ReInitUpscaler();
@@ -370,8 +369,8 @@ inline void MenuCommon::ReInitUpscaler()
 void MenuCommon::SeparatorWithHelpMarker(const char* label, const char* tip)
 {
     auto marker = "(?) ";
-    ImGui::SeparatorTextEx(0, label, ImGui::FindRenderedTextEnd(label),
-                           ImGui::CalcTextSize(marker, ImGui::FindRenderedTextEnd(marker)).x);
+    ImGui::SeparatorTextEx(0, MenuI18n::Text(label), ImGui::FindRenderedTextEnd(MenuI18n::Text(label)),
+                           ImGui::CalcTextSize(MenuI18n::Text(marker), ImGui::FindRenderedTextEnd(marker)).x);
     ShowHelpMarker(tip);
 }
 
@@ -426,7 +425,7 @@ class Keybind
     void Render(CustomOptional<int>& configKey)
     {
         ImGui::PushID(id);
-        if (ImGui::Button(name.c_str()))
+        if (ImGui::Button(MenuI18n::Label(name.c_str())))
         {
             waitingForKey = true;
             capturingKey = true;
@@ -437,7 +436,7 @@ class Keybind
         if (waitingForKey)
         {
             ImGui::SameLine();
-            ImGui::Text("Press any key...");
+            MenuI18nUI::Text("Press any key...");
 
             if (lastKey == 0 || lastKey == VK_LBUTTON || lastKey == VK_RBUTTON || lastKey == VK_MBUTTON)
                 return;
@@ -459,11 +458,11 @@ class Keybind
         }
 
         ImGui::SameLine();
-        ImGui::Text(KeyNameFromVirtualKeyCode(configKey.value_or_default()).c_str());
+        MenuI18nUI::Text(KeyNameFromVirtualKeyCode(configKey.value_or_default()).c_str());
 
         ImGui::SameLine();
         ImGui::PushID(id);
-        if (ImGui::Button("R"))
+        if (ImGui::Button(MenuI18n::Label("R")))
         {
             configKey.reset();
         }
@@ -505,7 +504,7 @@ void MenuCommon::RenderUpscalerCombo(const API api, Upscaler currentUpscaler, co
 
     std::string selectedName = UpscalerDisplayName(targetBackend, api);
 
-    if (ImGui::BeginCombo("##UpscalerCombo", selectedName.c_str()))
+    if (ImGui::BeginCombo(MenuI18n::Label("##UpscalerCombo"), MenuI18n::Text(selectedName.c_str())))
     {
         for (auto opt : options)
         {
@@ -518,7 +517,7 @@ void MenuCommon::RenderUpscalerCombo(const API api, Upscaler currentUpscaler, co
                 continue;
 
             bool isSelected = (currentUpscaler == opt);
-            if (ImGui::Selectable(UpscalerDisplayName(opt, api).c_str(), isSelected))
+            if (ImGui::Selectable(MenuI18n::Label(UpscalerDisplayName(opt, api).c_str()), isSelected))
             {
                 State::Instance().newBackend = opt;
             }
@@ -594,14 +593,14 @@ template <HasDefaultValue B> void MenuCommon::AddResourceBarrier(std::string nam
         }
     }
 
-    if (ImGui::BeginCombo(name.c_str(), selectedName))
+    if (ImGui::BeginCombo(MenuI18n::Label(name.c_str()), MenuI18n::Text(selectedName)))
     {
-        if (ImGui::Selectable(states[0], !value->has_value()))
+        if (ImGui::Selectable(MenuI18n::Label(states[0]), !value->has_value()))
             value->reset();
 
         for (int n = 1; n < 28; n++)
         {
-            if (ImGui::Selectable(states[n], selected == values[n]))
+            if (ImGui::Selectable(MenuI18n::Label(states[n]), selected == values[n]))
                 *value = values[n];
         }
 
@@ -843,7 +842,7 @@ void MenuCommon::PopulateCombo(const std::string& name, TStorage& currentValue,
         }
     }
 
-    if (ImGui::BeginCombo(name.c_str(), preview.c_str()))
+    if (ImGui::BeginCombo(MenuI18n::Label(name.c_str()), MenuI18n::Text(preview.c_str())))
     {
         for (const auto& opt : options)
         {
@@ -854,12 +853,12 @@ void MenuCommon::PopulateCombo(const std::string& name, TStorage& currentValue,
                 ImGui::BeginDisabled();
 
             bool isSelected = (currentVal == opt.value);
-            if (ImGui::Selectable(opt.label.c_str(), isSelected))
+            if (ImGui::Selectable(MenuI18n::Label(opt.label.c_str()), isSelected))
                 currentValue = opt.value;
 
             // Show tooltip for the individual item if it exists
             if (!opt.tooltip.empty() && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
-                ImGui::SetTooltip("%s", opt.tooltip.c_str());
+                MenuI18nUI::SetTooltip("%s", opt.tooltip.c_str());
 
             if (opt.disabled)
                 ImGui::EndDisabled();
@@ -1375,9 +1374,6 @@ void MenuCommon::HandleMenuShortcuts(RenderMenuContext& ctx)
 
             if (_isVisible)
             {
-                showFullSettings = false;
-                simpleEdits = {};
-                simpleSaveResult = 0;
                 io.ClearEventsQueue();
                 io.ClearInputKeys();
                 io.ClearInputMouse();
@@ -1570,7 +1566,7 @@ void MenuCommon::RenderSplashWindow(RenderMenuContext& ctx)
                 ImGui::PushStyleColor(ImGuiCol_Text, toneMapColor(ImVec4(1.0f, 1.0f, 1.0f, 1.0f)));
             }
 
-            if (ImGui::Begin("Splash", nullptr,
+            if (ImGui::Begin(MenuI18n::Label("Splash"), nullptr,
                              ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoDecoration |
                                  ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoFocusOnAppearing |
                                  ImGuiWindowFlags_NoNav))
@@ -1586,9 +1582,9 @@ void MenuCommon::RenderSplashWindow(RenderMenuContext& ctx)
                 else
                     ImGui::SetWindowFontScale(splashScale);
 
-                ImGui::Text("OptiScaler - %s for menu",
+                MenuI18nUI::Text("OptiScaler - %s for menu",
                             Keybind::KeyNameFromVirtualKeyCode(config->ShortcutKey.value_or_default()).c_str());
-                ImGui::TextColored(toneMapColor(ImVec4(1.0f, 1.0f, 1.0f, 0.7f)), splashMessage.c_str());
+                MenuI18nUI::TextColored(toneMapColor(ImVec4(1.0f, 1.0f, 1.0f, 0.7f)), splashMessage.c_str());
 
                 splashSize = ImGui::GetWindowSize();
 
@@ -1811,7 +1807,7 @@ void MenuCommon::RenderPerformanceOverlay(RenderMenuContext& ctx)
             ImGui::PushStyleColor(ImGuiCol_PlotLines, toneMapColor(green));
         }
 
-        if (ImGui::Begin("Performance Overlay", nullptr,
+        if (ImGui::Begin(MenuI18n::Label("Performance Overlay"), nullptr,
                          ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoDecoration |
                              ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoFocusOnAppearing |
                              ImGuiWindowFlags_NoNav))
@@ -1984,7 +1980,7 @@ void MenuCommon::RenderPerformanceOverlay(RenderMenuContext& ctx)
                 if (config->FpsOverlayHorizontal.value_or_default())
                 {
                     ImGui::SameLine(0.0f, 0.0f);
-                    ImGui::Text(" | ");
+                    MenuI18nUI::Text(" | ");
                     ImGui::SameLine(0.0f, 0.0f);
                 }
                 else
@@ -2010,9 +2006,9 @@ void MenuCommon::RenderPerformanceOverlay(RenderMenuContext& ctx)
             else
             {
                 // Find the widest text width
-                auto firstSize = ImGui::CalcTextSize(firstLine.c_str());
-                auto secondSize = ImGui::CalcTextSize(secondLine.c_str());
-                auto thirdSize = ImGui::CalcTextSize(thirdLine.c_str());
+                auto firstSize = ImGui::CalcTextSize(MenuI18n::Text(firstLine.c_str()));
+                auto secondSize = ImGui::CalcTextSize(MenuI18n::Text(secondLine.c_str()));
+                auto thirdSize = ImGui::CalcTextSize(MenuI18n::Text(thirdLine.c_str()));
                 auto textWidth = 0.0f;
 
                 if (firstSize.x > secondSize.x)
@@ -2027,14 +2023,14 @@ void MenuCommon::RenderPerformanceOverlay(RenderMenuContext& ctx)
             }
 
             // Draw the overlay
-            ImGui::Text(firstLine.c_str());
+            MenuI18nUI::Text(firstLine.c_str());
 
             if (config->FpsOverlayType.value_or_default() >= FpsOverlay_Detailed)
             {
                 if (config->FpsOverlayHorizontal.value_or_default())
                 {
                     ImGui::SameLine(0.0f, 0.0f);
-                    ImGui::Text(" | ");
+                    MenuI18nUI::Text(" | ");
                     ImGui::SameLine(0.0f, 0.0f);
                 }
                 else
@@ -2042,7 +2038,7 @@ void MenuCommon::RenderPerformanceOverlay(RenderMenuContext& ctx)
                     ImGui::Spacing();
                 }
 
-                ImGui::Text(secondLine.c_str());
+                MenuI18nUI::Text(secondLine.c_str());
             }
 
             if (config->FpsOverlayType.value_or_default() >= FpsOverlay_DetailedGraph)
@@ -2052,7 +2048,7 @@ void MenuCommon::RenderPerformanceOverlay(RenderMenuContext& ctx)
 
                 // Graph of frame times
                 ImGui::PlotLines(
-                    "##FrameTimeGraph",
+                    MenuI18n::Label("##FrameTimeGraph"),
                     [](void* rb, int idx) -> float { return static_cast<RingBuffer<float, plotWidth>*>(rb)->At(idx); },
                     &gFrameTimes, plotWidth, 0, nullptr, 0.0f, 66.6f, plotSize);
             }
@@ -2062,7 +2058,7 @@ void MenuCommon::RenderPerformanceOverlay(RenderMenuContext& ctx)
                 if (config->FpsOverlayHorizontal.value_or_default())
                 {
                     ImGui::SameLine(0.0f, 0.0f);
-                    ImGui::Text(" | ");
+                    MenuI18nUI::Text(" | ");
                     ImGui::SameLine(0.0f, 0.0f);
                 }
                 else
@@ -2070,7 +2066,7 @@ void MenuCommon::RenderPerformanceOverlay(RenderMenuContext& ctx)
                     ImGui::Spacing();
                 }
 
-                ImGui::Text(thirdLine.c_str());
+                MenuI18nUI::Text(thirdLine.c_str());
             }
 
             if (config->FpsOverlayType.value_or_default() >= FpsOverlay_FullGraph)
@@ -2080,7 +2076,7 @@ void MenuCommon::RenderPerformanceOverlay(RenderMenuContext& ctx)
 
                 // Graph of upscaler times
                 ImGui::PlotLines(
-                    "##UpscalerFrameTimeGraph",
+                    MenuI18n::Label("##UpscalerFrameTimeGraph"),
                     [](void* rb, int idx) -> float { return static_cast<RingBuffer<float, plotWidth>*>(rb)->At(idx); },
                     &gUpscalerTimes, plotWidth, 0, nullptr, 0.0f, 20.0f, plotSize);
             }
@@ -2112,8 +2108,8 @@ void MenuCommon::RenderPerformanceOverlay(RenderMenuContext& ctx)
                     if (fg != nullptr)
                         localFrameCount = fg->FrameCount();
 
-                    ImGui::Text("FGId: %llu, RfxId: %llu", localFrameCount, state.reflexFrameId);
-                    ImGui::Text("Low latency timings, whole frame: %.1fms", rangeInNs / 1000.0);
+                    MenuI18nUI::Text("FGId: %llu, RfxId: %llu", localFrameCount, state.reflexFrameId);
+                    MenuI18nUI::Text("Low latency timings, whole frame: %.1fms", rangeInNs / 1000.0);
 
                     const auto maxWidth =
                         config->FpsOverlayHorizontal.value_or_default() ? ImGui::GetWindowWidth() : plotSize.x;
@@ -2128,7 +2124,7 @@ void MenuCommon::RenderPerformanceOverlay(RenderMenuContext& ctx)
                         const auto& timing = timingOpt.value();
                         float duration = static_cast<float>(timing.length * rangeInNs / 1000.0);
 
-                        ImGui::TextColored(toneMappedColor, "%-12s %4.1fms", desc, duration);
+                        MenuI18nUI::TextColored(toneMappedColor, "%-12s %4.1fms", desc, duration);
 
                         auto leftLimit = ImGui::GetItemRectMin().x + offsetForText * fpsScale;
 
@@ -2172,8 +2168,8 @@ void MenuCommon::RenderPerformanceOverlay(RenderMenuContext& ctx)
                     if (fg != nullptr)
                         localFrameCount = fg->FrameCount();
 
-                    ImGui::Text("FGId: %llu, RfxId: %llu", localFrameCount, state.reflexFrameId);
-                    ImGui::Text("Reflex timings, whole frame: %.1fms", rangeInNs / 1000.0);
+                    MenuI18nUI::Text("FGId: %llu, RfxId: %llu", localFrameCount, state.reflexFrameId);
+                    MenuI18nUI::Text("Reflex timings, whole frame: %.1fms", rangeInNs / 1000.0);
 
                     const auto maxWidth =
                         config->FpsOverlayHorizontal.value_or_default() ? ImGui::GetWindowWidth() : plotSize.x;
@@ -2187,7 +2183,7 @@ void MenuCommon::RenderPerformanceOverlay(RenderMenuContext& ctx)
 
                         auto& timing = timingData[type].value();
                         float duration = static_cast<float>(timing.length * rangeInNs / 1000.0);
-                        ImGui::TextColored(toneMappedColor, "%-12s %4.1fms", desc, duration);
+                        MenuI18nUI::TextColored(toneMappedColor, "%-12s %4.1fms", desc, duration);
                         auto leftLimit = ImGui::GetItemRectMin().x + offsetForText * fpsScale;
                         auto start = static_cast<float>(leftLimit + (ImGui::GetItemRectMin().x + maxWidth - leftLimit) *
                                                                         timing.position);
@@ -2281,13 +2277,13 @@ void MenuCommon::RenderMainMenuHeaderMessages(RenderMenuContext& ctx)
         if (versionStatus.updateAvailable && !versionStatus.latestTag.empty())
         {
             ImGui::Spacing();
-            ImGui::TextColored(toneMapColor(ImVec4(1.f, 0.8f, 0.f, 1.f)), "Update available: %s (current %s)",
+            MenuI18nUI::TextColored(toneMapColor(ImVec4(1.f, 0.8f, 0.f, 1.f)), "Update available: %s (current %s)",
                                versionStatus.latestTag.c_str(), currentVersionText.c_str());
 
             if (!versionStatus.latestUrl.empty())
             {
                 ImGui::SameLine();
-                ImGui::TextLinkOpenURL("Open release page", versionStatus.latestUrl.c_str());
+                ImGui::TextLinkOpenURL(MenuI18n::Label("Open release page"), versionStatus.latestUrl.c_str());
             }
 
             ImGui::Spacing();
@@ -2336,7 +2332,7 @@ void MenuCommon::RenderMainMenuHeaderMessages(RenderMenuContext& ctx)
 
             std::string joinedUpscalers(joined.begin(), joined.end());
 
-            ImGui::Text("Please select %s as upscaler from game\noptions and load a save game "
+            MenuI18nUI::Text("Please select %s as upscaler from game\noptions and load a save game "
                         "to enable Opti settings.\nUpscalers don't always work in menus.",
                         joinedUpscalers.c_str());
 
@@ -2349,34 +2345,34 @@ void MenuCommon::RenderMainMenuHeaderMessages(RenderMenuContext& ctx)
 
             if (primaryGpu.dlssCapable)
             {
-                ImGui::Text("nvngx_dlss : %s", state.NVNGX_DLSS_Path.has_value() ? "Exists" : "Doesn't Exist");
+                MenuI18nUI::Text("nvngx_dlss : %s", state.NVNGX_DLSS_Path.has_value() ? "Exists" : "Doesn't Exist");
                 ImGui::SameLine(0.0f, 16.0f);
-                ImGui::Text("nvngx_dlssd : %s", state.NVNGX_DLSSD_Path.has_value() ? "Exists" : "Doesn't Exist");
+                MenuI18nUI::Text("nvngx_dlssd : %s", state.NVNGX_DLSSD_Path.has_value() ? "Exists" : "Doesn't Exist");
             }
             else
             {
-                ImGui::Text("nvngx.dll: %s", state.nvngxExists ? "Exists" : "Doesn't Exist");
+                MenuI18nUI::Text("nvngx.dll: %s", state.nvngxExists ? "Exists" : "Doesn't Exist");
                 ImGui::SameLine(0.0f, 16.0f);
-                ImGui::Text("nvngx replacement: %s", state.nvngxReplacement.has_value() ? "Exists" : "Doesn't Exist");
+                MenuI18nUI::Text("nvngx replacement: %s", state.nvngxReplacement.has_value() ? "Exists" : "Doesn't Exist");
             }
 
-            ImGui::Text("libxess: %s",
+            MenuI18nUI::Text("libxess: %s",
                         (state.libxessExists || XeSSProxy::Module() != nullptr) ? "Exists" : "Doesn't Exist");
 
-            ImGui::Text("FSR Hooks: %s", state.fsrHooks ? "Exist" : "Don't Exist");
+            MenuI18nUI::Text("FSR Hooks: %s", state.fsrHooks ? "Exist" : "Don't Exist");
             ImGui::SameLine(0.0f, 16.0f);
-            ImGui::Text("FSR 3.1: %s", FfxApiProxy::Dx12Module() != nullptr ? "Exists" : "Doesn't Exist");
+            MenuI18nUI::Text("FSR 3.1: %s", FfxApiProxy::Dx12Module() != nullptr ? "Exists" : "Doesn't Exist");
             ImGui::SameLine(0.0f, 16.0f);
-            ImGui::Text("FSR 3.1 SR: %s", FfxApiProxy::Dx12Module_SR() != nullptr ? "Exists" : "Doesn't Exist");
+            MenuI18nUI::Text("FSR 3.1 SR: %s", FfxApiProxy::Dx12Module_SR() != nullptr ? "Exists" : "Doesn't Exist");
             ImGui::SameLine(0.0f, 16.0f);
-            ImGui::Text("FSR 3.1 FG: %s", FfxApiProxy::Dx12Module_FG() != nullptr ? "Exists" : "Doesn't Exist");
+            MenuI18nUI::Text("FSR 3.1 FG: %s", FfxApiProxy::Dx12Module_FG() != nullptr ? "Exists" : "Doesn't Exist");
 
             ImGui::Spacing();
         }
         else
         {
             ImGui::Spacing();
-            ImGui::Text("Can't find nvngx.dll and libxess.dll and FSR inputs\nUpscaling support will NOT work.");
+            MenuI18nUI::Text("Can't find nvngx.dll and libxess.dll and FSR inputs\nUpscaling support will NOT work.");
             ImGui::Spacing();
 
             if (config->UseHQFont.value_or_default())
@@ -2394,7 +2390,7 @@ void MenuCommon::RenderMainMenuHeaderMessages(RenderMenuContext& ctx)
         else
             ImGui::SetWindowFontScale(menuResScale * 3.0f);
 
-        ImGui::Text("%s is active, but not currently used by the game\nPlease enter the game",
+        MenuI18nUI::Text("%s is active, but not currently used by the game\nPlease enter the game",
                     currentFeature->Name().c_str());
 
         if (config->UseHQFont.value_or_default())
@@ -2415,7 +2411,7 @@ void MenuCommon::RenderActiveUpscalerSettings(RenderMenuContext& ctx)
     if (currentFeature != nullptr && !currentFeature->IsFrozen())
     {
         // UPSCALERS -----------------------------
-        ImGui::SeparatorText("Upscalers");
+        ImGui::SeparatorText(MenuI18n::Text("Upscalers"));
         ShowTooltip("Which copium do you choose?");
 
         GetCurrentBackendInfo(state.api, currentBackend, &currentBackendName);
@@ -2430,18 +2426,18 @@ void MenuCommon::RenderActiveUpscalerSettings(RenderMenuContext& ctx)
         switch (state.api)
         {
         case DX11:
-            ImGui::Text(primaryGpu.name.c_str());
+            MenuI18nUI::Text(primaryGpu.name.c_str());
 
-            ImGui::Text("D3D11 %s| %s %d.%d.%d%s", primaryGpu.usesDxvk ? "(DXVK) " : "",
+            MenuI18nUI::Text("D3D11 %s| %s %d.%d.%d%s", primaryGpu.usesDxvk ? "(DXVK) " : "",
                         currentFeature->ShortName().c_str(), currentFeature->Version().major,
                         currentFeature->Version().minor, currentFeature->Version().patch,
                         usesDx12CompatLayer ? " w/Dx12" : "");
             ImGui::SameLine(0.0f, 6.0f);
-            ImGui::Text("| Input: %s", ApiUpscalerInputName(state.currentInputApiName).c_str());
+            MenuI18nUI::Text("| Input: %s", ApiUpscalerInputName(state.currentInputApiName).c_str());
 
             ImGui::SameLine(0.0f, 6.0f);
             spoofingText = config->DxgiSpoofing.value_or_default() ? "On" : "Off";
-            ImGui::Text("| Spoof: %s", spoofingText.c_str());
+            MenuI18nUI::Text("| Spoof: %s", spoofingText.c_str());
 
             if (!usesDlssd)
                 AddDx11Backends(currentBackend);
@@ -2449,17 +2445,17 @@ void MenuCommon::RenderActiveUpscalerSettings(RenderMenuContext& ctx)
             break;
 
         case DX12:
-            ImGui::Text(primaryGpu.name.c_str());
+            MenuI18nUI::Text(primaryGpu.name.c_str());
 
-            ImGui::Text("D3D12 %s| %s %d.%d.%d", primaryGpu.usesDxvk ? "(DXVK) " : "",
+            MenuI18nUI::Text("D3D12 %s| %s %d.%d.%d", primaryGpu.usesDxvk ? "(DXVK) " : "",
                         currentFeature->ShortName().c_str(), currentFeature->Version().major,
                         currentFeature->Version().minor, currentFeature->Version().patch);
             ImGui::SameLine(0.0f, 6.0f);
-            ImGui::Text("| Input: %s", ApiUpscalerInputName(state.currentInputApiName).c_str());
+            MenuI18nUI::Text("| Input: %s", ApiUpscalerInputName(state.currentInputApiName).c_str());
 
             ImGui::SameLine(0.0f, 6.0f);
             spoofingText = config->DxgiSpoofing.value_or_default() ? "On" : "Off";
-            ImGui::Text("| Spoof: %s", spoofingText.c_str());
+            MenuI18nUI::Text("| Spoof: %s", spoofingText.c_str());
 
             if (!usesDlssd)
                 AddDx12Backends(currentBackend);
@@ -2467,14 +2463,14 @@ void MenuCommon::RenderActiveUpscalerSettings(RenderMenuContext& ctx)
             break;
 
         default:
-            ImGui::Text(primaryGpu.name.c_str());
+            MenuI18nUI::Text(primaryGpu.name.c_str());
 
-            ImGui::Text("Vulkan %s| %s %d.%d.%d%s", primaryGpu.usesDxvk ? "(DXVK) " : "",
+            MenuI18nUI::Text("Vulkan %s| %s %d.%d.%d%s", primaryGpu.usesDxvk ? "(DXVK) " : "",
                         currentFeature->ShortName().c_str(), currentFeature->Version().major,
                         currentFeature->Version().minor, currentFeature->Version().patch,
                         usesDx12CompatLayer ? " w/Dx12" : "");
             ImGui::SameLine(0.0f, 6.0f);
-            ImGui::Text("| Input: %s", ApiUpscalerInputName(state.currentInputApiName).c_str());
+            MenuI18nUI::Text("| Input: %s", ApiUpscalerInputName(state.currentInputApiName).c_str());
 
             auto vlkSpoof = config->VulkanSpoofing.value_or_default();
             auto vlkExtSpoof = config->VulkanExtensionSpoofing.value_or_default();
@@ -2489,7 +2485,7 @@ void MenuCommon::RenderActiveUpscalerSettings(RenderMenuContext& ctx)
                 spoofingText = "Off";
 
             ImGui::SameLine(0.0f, 6.0f);
-            ImGui::Text("| Spoof: %s", spoofingText.c_str());
+            MenuI18nUI::Text("| Spoof: %s", spoofingText.c_str());
 
             if (!usesDlssd)
                 AddVulkanBackends(currentBackend);
@@ -2501,7 +2497,7 @@ void MenuCommon::RenderActiveUpscalerSettings(RenderMenuContext& ctx)
         {
             ImGui::SameLine(0.0f, 6.0f);
 
-            if (ImGui::Button("Change Upscaler##2") && state.newBackend != Upscaler::Reset &&
+            if (ImGui::Button(MenuI18n::Label("Change Upscaler##2")) && state.newBackend != Upscaler::Reset &&
                 state.newBackend != currentBackend)
             {
                 if (state.newBackend == Upscaler::XeSS)
@@ -2520,7 +2516,7 @@ void MenuCommon::RenderActiveUpscalerSettings(RenderMenuContext& ctx)
             ImGui::BeginDisabled(config->DisableReactiveMask.value_or(false));
 
             auto useAsTransparency = config->FsrUseMaskForTransparency.value_or_default();
-            if (ImGui::Checkbox("Use Reactive Mask as Transparency Mask", &useAsTransparency))
+            if (ImGui::Checkbox(MenuI18n::Label("Use Reactive Mask as Transparency Mask"), &useAsTransparency))
                 config->FsrUseMaskForTransparency = useAsTransparency;
 
             ImGui::EndDisabled();
@@ -2529,7 +2525,7 @@ void MenuCommon::RenderActiveUpscalerSettings(RenderMenuContext& ctx)
         if (primaryGpu.dlssCapable && !state.NVNGX_DLSS_Path.has_value())
         {
             ImGui::Spacing();
-            ImGui::TextColored(toneMapColor(ImVec4(1.f, 0.8f, 0.f, 1.f)), "nvngx_dlss.dll not found, DLSS disabled!");
+            MenuI18nUI::TextColored(toneMapColor(ImVec4(1.f, 0.8f, 0.f, 1.f)), "nvngx_dlss.dll not found, DLSS disabled!");
         }
     }
 
@@ -2547,7 +2543,7 @@ void MenuCommon::RenderActiveUpscalerSettings(RenderMenuContext& ctx)
                 ImGui::Spacing();
 
                 if (bool dontUseNTShared = config->DontUseNTShared.value_or_default();
-                    ImGui::Checkbox("Don't Use NTShared", &dontUseNTShared))
+                    ImGui::Checkbox(MenuI18n::Label("Don't Use NTShared"), &dontUseNTShared))
                     config->DontUseNTShared = dontUseNTShared;
 
                 ImGui::Spacing();
@@ -2564,11 +2560,11 @@ void MenuCommon::RenderActiveUpscalerSettings(RenderMenuContext& ctx)
                 ImGui::Spacing();
 
                 if (bool inputsUseCopy = config->VulkanUseCopyForInputs.value_or_default();
-                    ImGui::Checkbox("Use CopyResource for Inputs", &inputsUseCopy))
+                    ImGui::Checkbox(MenuI18n::Label("Use CopyResource for Inputs"), &inputsUseCopy))
                     config->VulkanUseCopyForInputs = inputsUseCopy;
 
                 if (bool outputUseCopy = config->VulkanUseCopyForOutput.value_or_default();
-                    ImGui::Checkbox("Use CopyResource for Output", &outputUseCopy))
+                    ImGui::Checkbox(MenuI18n::Label("Use CopyResource for Output"), &outputUseCopy))
                     config->VulkanUseCopyForOutput = outputUseCopy;
 
                 ImGui::Spacing();
@@ -2595,11 +2591,11 @@ void MenuCommon::RenderActiveUpscalerSettings(RenderMenuContext& ctx)
 
                 const char* selectedModel = models[configModes];
 
-                if (ImGui::BeginCombo("Network Models", selectedModel))
+                if (ImGui::BeginCombo(MenuI18n::Label("Network Models"), MenuI18n::Text(selectedModel)))
                 {
                     for (int n = 0; n < 6; n++)
                     {
-                        if (ImGui::Selectable(models[n], (config->NetworkModel.value_or_default() == n)))
+                        if (ImGui::Selectable(MenuI18n::Label(models[n]), (config->NetworkModel.value_or_default() == n)))
                         {
                             config->NetworkModel = n;
                             state.newBackend = currentBackend;
@@ -2611,14 +2607,14 @@ void MenuCommon::RenderActiveUpscalerSettings(RenderMenuContext& ctx)
                 }
                 ShowHelpMarker("Likely doesn't do much");
 
-                if (bool dbg = state.xessDebug; ImGui::Checkbox("Dump (Shift+Del)", &dbg))
+                if (bool dbg = state.xessDebug; ImGui::Checkbox(MenuI18n::Label("Dump (Shift+Del)"), &dbg))
                     state.xessDebug = dbg;
 
                 ImGui::SameLine(0.0f, 6.0f);
                 int dbgCount = state.xessDebugFrames;
 
                 ImGui::PushItemWidth(95.0f * menuResScale);
-                if (ImGui::InputInt("frames", &dbgCount))
+                if (ImGui::InputInt(MenuI18n::Label("frames"), &dbgCount))
                 {
                     if (dbgCount < 4)
                         dbgCount = 4;
@@ -2638,7 +2634,7 @@ void MenuCommon::RenderActiveUpscalerSettings(RenderMenuContext& ctx)
         // FFX -----------------
         if (!usesDlssd && (currentBackend == Upscaler::FFX || currentBackend == Upscaler::FFX_on12))
         {
-            ImGui::SeparatorText("FFX Settings");
+            ImGui::SeparatorText(MenuI18n::Text("FFX Settings"));
 
             if (_ffxUpscalerIndex < 0)
                 _ffxUpscalerIndex = config->FfxUpscalerIndex.value_or_default();
@@ -2649,12 +2645,12 @@ void MenuCommon::RenderActiveUpscalerSettings(RenderMenuContext& ctx)
                 ImGui::PushItemWidth(135.0f * menuResScale);
 
                 auto currentName = StrFmt("FSR %s", state.ffxUpscalerVersionNames[_ffxUpscalerIndex]);
-                if (ImGui::BeginCombo("FFX Upscaler", currentName.c_str()))
+                if (ImGui::BeginCombo(MenuI18n::Label("FFX Upscaler"), MenuI18n::Text(currentName.c_str())))
                 {
                     for (int n = 0; n < state.ffxUpscalerVersionIds.size(); n++)
                     {
                         auto name = StrFmt("FSR %s##%d", state.ffxUpscalerVersionNames[n], n);
-                        if (ImGui::Selectable(name.c_str(), config->FfxUpscalerIndex.value_or_default() == n))
+                        if (ImGui::Selectable(MenuI18n::Label(name.c_str()), config->FfxUpscalerIndex.value_or_default() == n))
                             _ffxUpscalerIndex = n;
                     }
 
@@ -2666,7 +2662,7 @@ void MenuCommon::RenderActiveUpscalerSettings(RenderMenuContext& ctx)
 
                 ImGui::SameLine(0.0f, 6.0f);
 
-                if (ImGui::Button("Change Upscaler") &&
+                if (ImGui::Button(MenuI18n::Label("Change Upscaler")) &&
                     _ffxUpscalerIndex != config->FfxUpscalerIndex.value_or_default())
                 {
                     config->FfxUpscalerIndex = _ffxUpscalerIndex;
@@ -2692,7 +2688,7 @@ void MenuCommon::RenderActiveUpscalerSettings(RenderMenuContext& ctx)
                         currentColorSpace = 1;
 
                     ImGui::SetNextItemWidth(150.0f * menuResScale);
-                    if (ImGui::Combo("Input Color Space", &currentColorSpace, colorSpaces, IM_ARRAYSIZE(colorSpaces)))
+                    if (MenuI18nUI::Combo("Input Color Space", &currentColorSpace, colorSpaces, IM_ARRAYSIZE(colorSpaces)))
                     {
                         bool isSrgb = (currentColorSpace == 2);
                         bool isPq = (currentColorSpace == 3);
@@ -2729,7 +2725,7 @@ void MenuCommon::RenderActiveUpscalerSettings(RenderMenuContext& ctx)
                         currentPresetIdx = 0;
 
                     ImGui::SetNextItemWidth(150.0f * menuResScale);
-                    if (ImGui::Combo("FSR4 Preset", &currentPresetIdx, presets, IM_ARRAYSIZE(presets)))
+                    if (MenuI18nUI::Combo("FSR4 Preset", &currentPresetIdx, presets, IM_ARRAYSIZE(presets)))
                     {
                         if (currentPresetIdx == 0)
                             config->Fsr4Preset.reset();
@@ -2751,11 +2747,11 @@ void MenuCommon::RenderActiveUpscalerSettings(RenderMenuContext& ctx)
                     // Display the active preset right next to the combo box instead of using a table
                     ImGui::SameLine();
                     if (state.currentFsr4Preset.has_value())
-                        ImGui::TextDisabled("(Active: %d)", state.currentFsr4Preset.value());
+                        MenuI18nUI::TextDisabled("(Active: %d)", state.currentFsr4Preset.value());
                     else if (FSR4ModelSelection::IsInt8FsrHooked())
-                        ImGui::TextColored(toneMapColor(ImVec4(1.f, 0.8f, 0.f, 1.f)), "(Potential FSR3 fallback)");
+                        MenuI18nUI::TextColored(toneMapColor(ImVec4(1.f, 0.8f, 0.f, 1.f)), "(Potential FSR3 fallback)");
                     else
-                        ImGui::TextDisabled("(Failed to hook)");
+                        MenuI18nUI::TextDisabled("(Failed to hook)");
                 }
 
                 if (majorFsrVersion >= 3)
@@ -2763,7 +2759,7 @@ void MenuCommon::RenderActiveUpscalerSettings(RenderMenuContext& ctx)
                     ImGui::Spacing();
 
                     bool debugView = config->FsrDebugView.value_or_default();
-                    if (ImGui::Checkbox("Upscaler Debug View", &debugView))
+                    if (ImGui::Checkbox(MenuI18n::Label("Upscaler Debug View"), &debugView))
                     {
                         config->FsrDebugView = debugView;
 
@@ -2795,7 +2791,7 @@ void MenuCommon::RenderActiveUpscalerSettings(RenderMenuContext& ctx)
                     {
                         ImGui::SameLine(0.0f, 20.0f * menuResScale);
                         bool fsr4wm = config->Fsr4EnableWatermark.value_or_default();
-                        if (ImGui::Checkbox("Watermark", &fsr4wm))
+                        if (ImGui::Checkbox(MenuI18n::Label("Watermark"), &fsr4wm))
                         {
                             LOG_DEBUG("FSR4 Watermark set to {}", fsr4wm);
                             config->Fsr4EnableWatermark = fsr4wm;
@@ -2813,12 +2809,12 @@ void MenuCommon::RenderActiveUpscalerSettings(RenderMenuContext& ctx)
 
                     if (currentFeature != nullptr)
                     {
-                        ImGui::Text("FSR 3.1 Presets:");
+                        MenuI18nUI::Text("FSR 3.1 Presets:");
 
                         ImGui::SameLine(0.0f, 6.0f);
 
                         // This will be applied by default
-                        if (ImGui::Button("Stability"))
+                        if (ImGui::Button(MenuI18n::Label("Stability")))
                         {
                             auto const scaleRatioX =
                                 (float) currentFeature->TargetWidth() / (float) currentFeature->RenderWidth();
@@ -2839,7 +2835,7 @@ void MenuCommon::RenderActiveUpscalerSettings(RenderMenuContext& ctx)
 
                         ImGui::SameLine(0.0f, 6.0f);
 
-                        if (ImGui::Button("Motion"))
+                        if (ImGui::Button(MenuI18n::Label("Motion")))
                         {
                             auto const scaleRatioX =
                                 (float) currentFeature->TargetWidth() / (float) currentFeature->RenderWidth();
@@ -2860,7 +2856,7 @@ void MenuCommon::RenderActiveUpscalerSettings(RenderMenuContext& ctx)
 
                         ImGui::SameLine(0.0f, 6.0f);
 
-                        if (ImGui::Button("Default"))
+                        if (ImGui::Button(MenuI18n::Label("Default")))
                         {
                             config->FsrVelocity = 1.0f;
                             config->FsrReactiveScale = 1.0f;
@@ -2881,7 +2877,7 @@ void MenuCommon::RenderActiveUpscalerSettings(RenderMenuContext& ctx)
                         ImGui::PushItemWidth(220.0f * menuResScale);
 
                         float velocity = config->FsrVelocity.value_or_default();
-                        if (ImGui::SliderFloat("Velocity Factor", &velocity, 0.00f, 1.0f, "%.2f"))
+                        if (ImGui::SliderFloat(MenuI18n::Label("Velocity Factor"), &velocity, 0.00f, 1.0f, "%.2f"))
                             config->FsrVelocity = velocity;
 
                         ShowHelpMarker("Value of 0.0f can improve temporal stability of bright pixels\n"
@@ -2892,7 +2888,7 @@ void MenuCommon::RenderActiveUpscalerSettings(RenderMenuContext& ctx)
                         {
                             // Reactive Scale
                             float reactiveScale = config->FsrReactiveScale.value_or_default();
-                            if (ImGui::SliderFloat("Reactive Scale", &reactiveScale, 0.0f, 1.0f, "%.3f"))
+                            if (ImGui::SliderFloat(MenuI18n::Label("Reactive Scale"), &reactiveScale, 0.0f, 1.0f, "%.3f"))
                                 config->FsrReactiveScale = reactiveScale;
 
                             ShowHelpMarker("Meant for development purpose to test if\n"
@@ -2900,7 +2896,7 @@ void MenuCommon::RenderActiveUpscalerSettings(RenderMenuContext& ctx)
 
                             // Shading Scale
                             float shadingScale = config->FsrShadingScale.value_or_default();
-                            if (ImGui::SliderFloat("Shading Scale", &shadingScale, 0.0f, 1.0f, "%.3f"))
+                            if (ImGui::SliderFloat(MenuI18n::Label("Shading Scale"), &shadingScale, 0.0f, 1.0f, "%.3f"))
                                 config->FsrShadingScale = shadingScale;
 
                             ShowHelpMarker("Increasing this scales FSR3.1 computed shading\n"
@@ -2908,7 +2904,7 @@ void MenuCommon::RenderActiveUpscalerSettings(RenderMenuContext& ctx)
 
                             // Accumulation Added Per Frame
                             float accAddPerFrame = config->FsrAccAddPerFrame.value_or_default();
-                            if (ImGui::SliderFloat("Acc. Added Per Frame", &accAddPerFrame, 0.0f, 1.0f, "%.3f"))
+                            if (ImGui::SliderFloat(MenuI18n::Label("Acc. Added Per Frame"), &accAddPerFrame, 0.0f, 1.0f, "%.3f"))
                                 config->FsrAccAddPerFrame = accAddPerFrame;
 
                             ShowHelpMarker("Corresponds to amount of accumulation added per frame\n"
@@ -2920,7 +2916,7 @@ void MenuCommon::RenderActiveUpscalerSettings(RenderMenuContext& ctx)
 
                             // Min Disocclusion Accumulation
                             float minDisOccAcc = config->FsrMinDisOccAcc.value_or_default();
-                            if (ImGui::SliderFloat("Min. Disocclusion Acc.", &minDisOccAcc, -1.0f, 1.0f, "%.3f"))
+                            if (ImGui::SliderFloat(MenuI18n::Label("Min. Disocclusion Acc."), &minDisOccAcc, -1.0f, 1.0f, "%.3f"))
                                 config->FsrMinDisOccAcc = minDisOccAcc;
 
                             ShowHelpMarker("Increasing this value may reduce white pixel temporal\n"
@@ -2944,16 +2940,16 @@ void MenuCommon::RenderActiveUpscalerSettings(RenderMenuContext& ctx)
         {
 
             if (usesDlssd)
-                ImGui::SeparatorText("DLSSD Settings");
+                ImGui::SeparatorText(MenuI18n::Text("DLSSD Settings"));
             else
-                ImGui::SeparatorText("DLSS Settings");
+                ImGui::SeparatorText(MenuI18n::Text("DLSS Settings"));
 
             auto overridden =
                 usesDlssd ? state.dlssdPresetsOverriddenExternally : state.dlssPresetsOverriddenExternally;
 
             if (overridden)
             {
-                ImGui::TextColored(toneMapColor(ImVec4(1.f, 0.8f, 0.f, 1.f)), "Presets are overridden externally");
+                MenuI18nUI::TextColored(toneMapColor(ImVec4(1.f, 0.8f, 0.f, 1.f)), "Presets are overridden externally");
                 ShowHelpMarker("This usually happens due to using tools\n"
                                "such as Nvidia App or Nvidia Inspector");
                 // ImGui::Text("Selecting setting below will disable that external override\n"
@@ -2965,7 +2961,7 @@ void MenuCommon::RenderActiveUpscalerSettings(RenderMenuContext& ctx)
             if (usesDlssd)
             {
                 if (bool pOverride = config->DLSSDRenderPresetOverride.value_or_default();
-                    ImGui::Checkbox("Render Presets Override", &pOverride))
+                    ImGui::Checkbox(MenuI18n::Label("Render Presets Override"), &pOverride))
                     config->DLSSDRenderPresetOverride = pOverride;
 
                 ShowHelpMarker("Each render preset has it strengths and weaknesses\n"
@@ -2992,7 +2988,7 @@ void MenuCommon::RenderActiveUpscalerSettings(RenderMenuContext& ctx)
             else
             {
                 if (bool pOverride = config->RenderPresetOverride.value_or_default();
-                    ImGui::Checkbox("Render Presets Override", &pOverride))
+                    ImGui::Checkbox(MenuI18n::Label("Render Presets Override"), &pOverride))
                     config->RenderPresetOverride = pOverride;
 
                 ShowHelpMarker("Each render preset has it strengths and weaknesses\n"
@@ -3020,7 +3016,7 @@ void MenuCommon::RenderActiveUpscalerSettings(RenderMenuContext& ctx)
 
             ImGui::SameLine(0.0f, 6.0f);
 
-            if (ImGui::Button("Apply Changes"))
+            if (ImGui::Button(MenuI18n::Label("Apply Changes")))
             {
                 LOG_DEBUG("Applying DLSS/DLSSD preset override changes, preset index: {}",
                           comboPreset.value_or_default());
@@ -3048,7 +3044,7 @@ void MenuCommon::RenderActiveUpscalerSettings(RenderMenuContext& ctx)
                 ImGui::Spacing();
 
                 bool appIdOverride = config->UseGenericAppIdWithDlss.value_or_default();
-                if (ImGui::Checkbox("Use Generic App Id with DLSS", &appIdOverride))
+                if (ImGui::Checkbox(MenuI18n::Label("Use Generic App Id with DLSS"), &appIdOverride))
                     config->UseGenericAppIdWithDlss = appIdOverride;
 
                 ShowHelpMarker("Use generic appid with NGX\n"
@@ -3092,16 +3088,16 @@ void MenuCommon::RenderFrameGenerationSelection(RenderMenuContext& ctx)
     auto& state = ctx.state;
     auto config = ctx.config;
     bool external = config->ExternalFrameGeneration.value_or_default();
-    if (ImGui::Checkbox("External frame generation / MFG unlocker", &external))
+    if (ImGui::Checkbox(MenuI18n::Label("External frame generation / MFG unlocker"), &external))
         config->ExternalFrameGeneration = external;
     ShowHelpMarker("Leaves Streamline, Reflex and FG control to the game/external mod."
                    "\nNR and NGX upscaling remain available. Save Settings and restart."
                    "\nDoes not install an unlocker or enable FG in unsupported games.");
     if (external != state.externalFrameGeneration)
-        ImGui::TextWrapped("Save Settings and restart to change frame-generation ownership.");
+        MenuI18nUI::TextWrapped("Save Settings and restart to change frame-generation ownership.");
     if (state.externalFrameGeneration)
     {
-        ImGui::TextWrapped("External FG is active. Set the multiplier in the game or unlocker, not OptiScaler.");
+        MenuI18nUI::TextWrapped("External FG is active. Set the multiplier in the game or unlocker, not OptiScaler.");
         return;
     }
     auto& menuResScale = ctx.menuResScale;
@@ -3307,7 +3303,7 @@ void MenuCommon::RenderFrameGenerationSelection(RenderMenuContext& ctx)
 
     if (state.activeFgInput != FGInput::ForceXeLL)
     {
-        ImGui::SeparatorText("Frame Generation");
+        ImGui::SeparatorText(MenuI18n::Text("Frame Generation"));
 
         if (ImGui::BeginTable("fgSelection", 2, ImGuiTableFlags_SizingStretchSame))
         {
@@ -3363,7 +3359,7 @@ void MenuCommon::RenderFrameGenerationSelection(RenderMenuContext& ctx)
         if (state.fgSettingsChanged)
         {
             ImGui::Spacing();
-            ImGui::TextColored(toneMapColor(ImVec4(1.f, 0.f, 0.0f, 1.f)),
+            MenuI18nUI::TextColored(toneMapColor(ImVec4(1.f, 0.f, 0.0f, 1.f)),
                                "Save Settings and restart to apply the changes");
             ImGui::Spacing();
         }
@@ -3391,11 +3387,11 @@ void MenuCommon::RenderFrameGenerationSelection(RenderMenuContext& ctx)
 
                 ImGui::PushItemWidth(95.0f * menuResScale);
 
-                if (ImGui::BeginCombo("Override DLSSG Ratio", currentIntCount))
+                if (ImGui::BeginCombo(MenuI18n::Label("Override DLSSG Ratio"), MenuI18n::Text(currentIntCount)))
                 {
                     for (int i = 0; i <= maxInterpolationCount + 1; i++)
                     {
-                        if (ImGui::Selectable(intModes[i], (currentSet == i)))
+                        if (ImGui::Selectable(MenuI18n::Label(intModes[i]), (currentSet == i)))
                         {
                             if (i == 0)
                             {
@@ -3429,7 +3425,7 @@ void MenuCommon::RenderFrameGenerationSelection(RenderMenuContext& ctx)
             ImGui::SameLine(0.0f, 16.0f);
 
             if (bool dynamicMFG = config->FGDLSSGOverrideForceDMFG.value_or_default();
-                ImGui::Checkbox("Force Dynamic MFG", &dynamicMFG))
+                ImGui::Checkbox(MenuI18n::Label("Force Dynamic MFG"), &dynamicMFG))
             {
                 config->FGDLSSGOverrideForceDMFG = dynamicMFG;
                 StreamlineHooks::updateDlssgOptions();
@@ -3437,11 +3433,11 @@ void MenuCommon::RenderFrameGenerationSelection(RenderMenuContext& ctx)
 
             ImGui::BeginDisabled(state.dlssgLastSetMode != sl::DLSSGMode::eDynamic);
             static float fpsTarget = config->FGDLSSGFramerateTargetDMFG.value_or_default();
-            ImGui::SliderFloat("DMFG FPS Target", &fpsTarget, 0, 200, "%.0f");
+            ImGui::SliderFloat(MenuI18n::Label("DMFG FPS Target"), &fpsTarget, 0, 200, "%.0f");
 
             ShowHelpMarker("An active limit of 0 means auto-detect the display refresh rate");
 
-            if (ImGui::Button("Apply Target"))
+            if (ImGui::Button(MenuI18n::Label("Apply Target")))
             {
                 config->FGDLSSGFramerateTargetDMFG = fpsTarget;
                 StreamlineHooks::updateDlssgOptions();
@@ -3449,7 +3445,7 @@ void MenuCommon::RenderFrameGenerationSelection(RenderMenuContext& ctx)
 
             ImGui::SameLine(0.0f, 16.0f);
 
-            if (ImGui::Button("Reset Target"))
+            if (ImGui::Button(MenuI18n::Label("Reset Target")))
             {
                 fpsTarget = 0.0f;
                 config->FGDLSSGFramerateTargetDMFG.reset();
@@ -3464,7 +3460,7 @@ void MenuCommon::RenderFrameGenerationSelection(RenderMenuContext& ctx)
              state.activeFgInput != FGInput::NoFG && state.activeFgInput != FGInput::NvngxFG) &&
             fgOutput)
         {
-            ImGui::Checkbox("Show Detected UI", &state.fgHudlessCompare);
+            ImGui::Checkbox(MenuI18n::Label("Show Detected UI"), &state.fgHudlessCompare);
             ShowHelpMarker("Needs HUDless texture to compare with final image.\n"
                            "UI elements and ONLY UI elements should have a pink tint!");
 
@@ -3473,7 +3469,7 @@ void MenuCommon::RenderFrameGenerationSelection(RenderMenuContext& ctx)
             ImGui::BeginDisabled(!isUsingUIAny);
 
             if (bool drawUIOverFG = config->FGDrawUIOverFG.value_or_default();
-                ImGui::Checkbox("Draw UI over", &drawUIOverFG))
+                ImGui::Checkbox(MenuI18n::Label("Draw UI over"), &drawUIOverFG))
             {
                 config->FGDrawUIOverFG = drawUIOverFG;
             }
@@ -3487,7 +3483,7 @@ void MenuCommon::RenderFrameGenerationSelection(RenderMenuContext& ctx)
             ImGui::BeginDisabled(!isUsingUIAny || !config->FGDrawUIOverFG.value_or_default());
 
             if (bool uiPremultipliedAlpha = config->FGUIPremultipliedAlpha.value_or_default();
-                ImGui::Checkbox("UI Premult. alpha", &uiPremultipliedAlpha))
+                ImGui::Checkbox(MenuI18n::Label("UI Premult. alpha"), &uiPremultipliedAlpha))
             {
                 config->FGUIPremultipliedAlpha = uiPremultipliedAlpha;
             }
@@ -3524,7 +3520,7 @@ void MenuCommon::RenderFrameGenerationSelection(RenderMenuContext& ctx)
                         bool disableUI = config->FGDisableUI.value_or_default();
                         ImGui::BeginDisabled(!isUsingUIAny && !disableUI);
 
-                        if (ImGui::Checkbox("Disable UI texture", &disableUI))
+                        if (ImGui::Checkbox(MenuI18n::Label("Disable UI texture"), &disableUI))
                         {
                             config->FGDisableUI = disableUI;
                             fgOutput->UpdateTarget();
@@ -3539,7 +3535,7 @@ void MenuCommon::RenderFrameGenerationSelection(RenderMenuContext& ctx)
                         bool disableHudless = config->FGDisableHudless.value_or_default();
                         ImGui::BeginDisabled(!isUsingHudlessAny && !disableHudless);
 
-                        if (ImGui::Checkbox("Disable HUDless", &disableHudless))
+                        if (ImGui::Checkbox(MenuI18n::Label("Disable HUDless"), &disableHudless))
                         {
                             config->FGDisableHudless = disableHudless;
                         }
@@ -3549,7 +3545,7 @@ void MenuCommon::RenderFrameGenerationSelection(RenderMenuContext& ctx)
                         ImGui::EndDisabled();
 
                         bool depthValidNow = config->FGDepthValidNow.value_or_default();
-                        if (ImGui::Checkbox("Depth as ValidNow", &depthValidNow))
+                        if (ImGui::Checkbox(MenuI18n::Label("Depth as ValidNow"), &depthValidNow))
                             config->FGDepthValidNow = depthValidNow;
 
                         ShowHelpMarker("Will use more VRAM, but Uniscaler needs this\n"
@@ -3558,14 +3554,14 @@ void MenuCommon::RenderFrameGenerationSelection(RenderMenuContext& ctx)
                         ImGui::SameLine(0.0f, 16.0f);
 
                         bool velocityValidNow = config->FGVelocityValidNow.value_or_default();
-                        if (ImGui::Checkbox("Velocity as ValidNow", &velocityValidNow))
+                        if (ImGui::Checkbox(MenuI18n::Label("Velocity as ValidNow"), &velocityValidNow))
                             config->FGVelocityValidNow = velocityValidNow;
 
                         ShowHelpMarker("Will use more VRAM, but Uniscaler needs this\n"
                                        "Maybe some other games might need too");
 
                         bool hudlessValidNow = config->FGHudlessValidNow.value_or_default();
-                        if (ImGui::Checkbox("HUDless as ValidNow", &hudlessValidNow))
+                        if (ImGui::Checkbox(MenuI18n::Label("HUDless as ValidNow"), &hudlessValidNow))
                             config->FGHudlessValidNow = hudlessValidNow;
 
                         ShowHelpMarker("Will use more VRAM, but some games might need this");
@@ -3573,13 +3569,13 @@ void MenuCommon::RenderFrameGenerationSelection(RenderMenuContext& ctx)
                         ImGui::SameLine(0.0f, 16.0f);
 
                         bool firstHudless = config->FGOnlyAcceptFirstHudless.value_or_default();
-                        if (ImGui::Checkbox("Accept First HUDless", &firstHudless))
+                        if (ImGui::Checkbox(MenuI18n::Label("Accept First HUDless"), &firstHudless))
                             config->FGOnlyAcceptFirstHudless = firstHudless;
 
                         ShowHelpMarker("If source tags more than one HUDless, only use the first one");
 
                         if (bool skipReset = config->FGSkipReset.value_or_default();
-                            ImGui::Checkbox("Skip Reset", &skipReset))
+                            ImGui::Checkbox(MenuI18n::Label("Skip Reset"), &skipReset))
                         {
                             config->FGSkipReset = skipReset;
                         }
@@ -3591,7 +3587,7 @@ void MenuCommon::RenderFrameGenerationSelection(RenderMenuContext& ctx)
                         ImGui::PushItemWidth(80.0f * menuResScale);
 
                         auto frameAhead = config->FGAllowedFrameAhead.value_or_default();
-                        if (ImGui::InputInt("Frame Ahead", &frameAhead, 1, 1) && frameAhead > 0 && frameAhead < 4)
+                        if (ImGui::InputInt(MenuI18n::Label("Frame Ahead"), &frameAhead, 1, 1) && frameAhead > 0 && frameAhead < 4)
                         {
                             config->FGAllowedFrameAhead = frameAhead;
                         }
@@ -3613,19 +3609,19 @@ void MenuCommon::RenderFrameGenerationSelection(RenderMenuContext& ctx)
 
                         ImGui::PushItemWidth(95.0f * menuResScale);
 
-                        if (ImGui::BeginCombo("FT Input", ftSources[currentSet]))
+                        if (ImGui::BeginCombo(MenuI18n::Label("FT Input"), MenuI18n::Text(ftSources[currentSet])))
                         {
                             for (size_t i = 0; i < currentSourceCount; i++)
                             {
 
-                                if (ImGui::Selectable(ftSources[i], currentSet == i))
+                                if (ImGui::Selectable(MenuI18n::Label(ftSources[i]), currentSet == i))
                                 {
                                     LOG_DEBUG("FTInput has changed {} -> {}", ftSources[currentSet], ftSources[i]);
                                     config->FTInput = (FrameTimeSource) i;
                                 }
 
                                 if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
-                                    ImGui::SetTooltip(ftSourceInfos[i]);
+                                    MenuI18nUI::SetTooltip(ftSourceInfos[i]);
                             }
 
                             ImGui::EndCombo();
@@ -3641,7 +3637,7 @@ void MenuCommon::RenderFrameGenerationSelection(RenderMenuContext& ctx)
                 if (showHudCutoff)
                 {
                     float fgHudCutoff = config->FGHudCutoff.value_or_default();
-                    if (ImGui::SliderFloat("Hud Cutoff", &fgHudCutoff, 0.00f, 1.0f, "%.2f"))
+                    if (ImGui::SliderFloat(MenuI18n::Label("Hud Cutoff"), &fgHudCutoff, 0.00f, 1.0f, "%.2f"))
                         config->FGHudCutoff = fgHudCutoff;
 
                     ShowHelpMarker("Cutoffs transparency from UI to help with interpolation\n"
@@ -3668,7 +3664,7 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
         if (state.activeFgInput != FGInput::Upscaler ||
             (currentFeature != nullptr && !currentFeature->IsFrozen()) && FfxApiProxy::IsFGReady())
         {
-            ImGui::SeparatorText("Frame Generation (FSR FG)");
+            ImGui::SeparatorText(MenuI18n::Text("Frame Generation (FSR FG)"));
 
             if (_ffxFGIndex < 0)
                 _ffxFGIndex = config->FfxFGIndex.value_or_default();
@@ -3678,12 +3674,12 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
                 ImGui::PushItemWidth(135.0f * menuResScale);
 
                 auto currentName = StrFmt("FSR %s", state.ffxFGVersionNames[_ffxFGIndex]);
-                if (ImGui::BeginCombo("FFX FG", currentName.c_str()))
+                if (ImGui::BeginCombo(MenuI18n::Label("FFX FG"), MenuI18n::Text(currentName.c_str())))
                 {
                     for (int n = 0; n < state.ffxFGVersionIds.size(); n++)
                     {
                         auto name = StrFmt("FSR %s", state.ffxFGVersionNames[n]);
-                        if (ImGui::Selectable(name.c_str(), config->FfxFGIndex.value_or_default() == n))
+                        if (ImGui::Selectable(MenuI18n::Label(name.c_str()), config->FfxFGIndex.value_or_default() == n))
                             _ffxFGIndex = n;
                     }
 
@@ -3695,7 +3691,7 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
 
                 ImGui::SameLine(0.0f, 6.0f);
 
-                if (ImGui::Button("Change FG") && _ffxFGIndex != config->FfxFGIndex.value_or_default())
+                if (ImGui::Button(MenuI18n::Label("Change FG")) && _ffxFGIndex != config->FfxFGIndex.value_or_default())
                 {
                     config->FfxFGIndex = _ffxFGIndex;
                     state.fgChanged = true;
@@ -3704,7 +3700,7 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
             }
 
             bool fgActive = config->FGEnabled.value_or_default();
-            if (ImGui::Checkbox("Active##2", &fgActive))
+            if (ImGui::Checkbox(MenuI18n::Label("Active##2"), &fgActive))
             {
                 config->FGEnabled = fgActive;
                 LOG_DEBUG("FGEnabled set FGEnabled: {}", fgActive);
@@ -3715,7 +3711,7 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
             ShowHelpMarker("Enable Frame Generation");
 
             bool fgAsync = config->FGAsync.value_or_default();
-            if (ImGui::Checkbox("Allow Async", &fgAsync))
+            if (ImGui::Checkbox(MenuI18n::Label("Allow Async"), &fgAsync))
             {
                 config->FGAsync = fgAsync;
 
@@ -3731,7 +3727,7 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
             ImGui::SameLine(0.0f, 16.0f);
 
             bool fgDV = config->FGDebugView.value_or_default();
-            if (ImGui::Checkbox("Debug View##2", &fgDV))
+            if (ImGui::Checkbox(MenuI18n::Label("Debug View##2"), &fgDV))
             {
                 config->FGDebugView = fgDV;
 
@@ -3755,7 +3751,7 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
             if (state.currentFG && state.currentFG->Version().major > 3)
             {
                 if (bool fgwm = config->FSRFGEnableWatermark.value_or_default();
-                    ImGui::Checkbox("Enable Watermark", &fgwm))
+                    ImGui::Checkbox(MenuI18n::Label("Enable Watermark"), &fgwm))
                 {
                     LOG_DEBUG("FSRFGEnableWatermark set FGWatermark: {}", fgwm);
                     config->FSRFGEnableWatermark = fgwm;
@@ -3772,12 +3768,12 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
                 ScopedIndent indent {};
                 ImGui::Spacing();
 
-                ImGui::Checkbox("FG Only Generated", &state.fgOnlyGenerated);
+                ImGui::Checkbox(MenuI18n::Label("FG Only Generated"), &state.fgOnlyGenerated);
                 ShowHelpMarker("Display only FSR 3.1 Generated frames");
 
                 ImGui::SameLine(0.0f, 16.0f);
                 auto debugResetLines = config->FGDebugResetLines.value_or_default();
-                if (ImGui::Checkbox("Debug Reset Lines", &debugResetLines))
+                if (ImGui::Checkbox(MenuI18n::Label("Debug Reset Lines"), &debugResetLines))
                 {
                     config->FGDebugResetLines = debugResetLines;
                     LOG_DEBUG("Enabled set FGDebugLines: {}", debugResetLines);
@@ -3785,7 +3781,7 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
                 ShowHelpMarker("Enables drawing of Interpolation skip lines");
 
                 auto debugTearLines = config->FGDebugTearLines.value_or_default();
-                if (ImGui::Checkbox("Debug Tear Lines", &debugTearLines))
+                if (ImGui::Checkbox(MenuI18n::Label("Debug Tear Lines"), &debugTearLines))
                 {
                     config->FGDebugTearLines = debugTearLines;
                     LOG_DEBUG("Enabled set FGDebugLines: {}", debugTearLines);
@@ -3794,7 +3790,7 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
 
                 ImGui::SameLine(0.0f, 16.0f);
                 auto debugPacingLines = config->FGDebugPacingLines.value_or_default();
-                if (ImGui::Checkbox("Debug Pacing Lines", &debugPacingLines))
+                if (ImGui::Checkbox(MenuI18n::Label("Debug Pacing Lines"), &debugPacingLines))
                 {
                     config->FGDebugPacingLines = debugPacingLines;
                     LOG_DEBUG("Enabled set FGDebugLines: {}", debugPacingLines);
@@ -3802,25 +3798,25 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
                 ShowHelpMarker("Enables drawing of Pacing lines");
 
                 ImGui::Spacing();
-                if (ImGui::TreeNode("FG Rectangle Settings"))
+                if (ImGui::TreeNode(MenuI18n::Label("FG Rectangle Settings")))
                 {
                     ImGui::PushItemWidth(95.0f * menuResScale);
                     int rectLeft = config->FGRectLeft.value_or(0);
-                    if (ImGui::InputInt("Rect Left", &rectLeft))
+                    if (ImGui::InputInt(MenuI18n::Label("Rect Left"), &rectLeft))
                         config->FGRectLeft = rectLeft;
 
                     ImGui::SameLine(0.0f, 16.0f);
                     int rectTop = config->FGRectTop.value_or(0);
-                    if (ImGui::InputInt("Rect Top", &rectTop))
+                    if (ImGui::InputInt(MenuI18n::Label("Rect Top"), &rectTop))
                         config->FGRectTop = rectTop;
 
                     int rectWidth = config->FGRectWidth.value_or(0);
-                    if (ImGui::InputInt("Rect Width", &rectWidth))
+                    if (ImGui::InputInt(MenuI18n::Label("Rect Width"), &rectWidth))
                         config->FGRectWidth = rectWidth;
 
                     ImGui::SameLine(0.0f, 16.0f);
                     int rectHeight = config->FGRectHeight.value_or(0);
-                    if (ImGui::InputInt("Rect Height", &rectHeight))
+                    if (ImGui::InputInt(MenuI18n::Label("Rect Height"), &rectHeight))
                         config->FGRectHeight = rectHeight;
 
                     ImGui::PopItemWidth();
@@ -3829,7 +3825,7 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
                     ImGui::BeginDisabled(!config->FGRectLeft.has_value() && !config->FGRectTop.has_value() &&
                                          !config->FGRectWidth.has_value() && !config->FGRectHeight.has_value());
 
-                    if (ImGui::Button("Reset FG Rect"))
+                    if (ImGui::Button(MenuI18n::Label("Reset FG Rect")))
                     {
                         config->FGRectLeft.reset();
                         config->FGRectTop.reset();
@@ -3849,10 +3845,10 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
                 {
                     ImGui::Spacing();
 
-                    if (ImGui::TreeNode("Frame Pacing Tuning"))
+                    if (ImGui::TreeNode(MenuI18n::Label("Frame Pacing Tuning")))
                     {
                         auto fptEnabled = config->FGFramePacingTuning.value_or_default();
-                        if (ImGui::Checkbox("Enable Tuning", &fptEnabled))
+                        if (ImGui::Checkbox(MenuI18n::Label("Enable Tuning"), &fptEnabled))
                         {
                             config->FGFramePacingTuning = fptEnabled;
                             state.fsrfgFramePaceTuningChanged = true;
@@ -3862,14 +3858,14 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
 
                         ImGui::PushItemWidth(115.0f * menuResScale);
                         auto fptSafetyMargin = config->FGFPTSafetyMarginInMs.value_or_default();
-                        if (ImGui::InputFloat("Safety Margins in ms", &fptSafetyMargin, 0.01f, 0.1f, "%.2f"))
+                        if (ImGui::InputFloat(MenuI18n::Label("Safety Margins in ms"), &fptSafetyMargin, 0.01f, 0.1f, "%.2f"))
                             config->FGFPTSafetyMarginInMs = fptSafetyMargin;
                         ShowHelpMarker("Safety margins in millisecons\n"
                                        "FSR default value: 0.1ms\n"
                                        "Opti default value: 0.01ms");
 
                         auto fptVarianceFactor = config->FGFPTVarianceFactor.value_or_default();
-                        if (ImGui::SliderFloat("Variance Factor", &fptVarianceFactor, 0.0f, 1.0f, "%.2f"))
+                        if (ImGui::SliderFloat(MenuI18n::Label("Variance Factor"), &fptVarianceFactor, 0.0f, 1.0f, "%.2f"))
                             config->FGFPTVarianceFactor = fptVarianceFactor;
                         ShowHelpMarker("Variance factor\n"
                                        "FSR default value: 0.1\n"
@@ -3877,14 +3873,14 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
                         ImGui::PopItemWidth();
 
                         auto fpHybridSpin = config->FGFPTAllowHybridSpin.value_or_default();
-                        if (ImGui::Checkbox("Enable Hybrid Spin", &fpHybridSpin))
+                        if (ImGui::Checkbox(MenuI18n::Label("Enable Hybrid Spin"), &fpHybridSpin))
                             config->FGFPTAllowHybridSpin = fpHybridSpin;
                         ShowHelpMarker("Allows pacing spinlock to sleep, should reduce CPU usage\n"
                                        "Might cause slow ramp up of FPS");
 
                         ImGui::PushItemWidth(115.0f * menuResScale);
                         auto fptHybridSpinTime = config->FGFPTHybridSpinTime.value_or_default();
-                        if (ImGui::SliderInt("Hybrid Spin Time", &fptHybridSpinTime, 0, 100))
+                        if (ImGui::SliderInt(MenuI18n::Label("Hybrid Spin Time"), &fptHybridSpinTime, 0, 100))
                             config->FGFPTHybridSpinTime = fptHybridSpinTime;
                         ShowHelpMarker("How long to spin if FPTHybridSpin is true. Measured in timer "
                                        "resolution units.\n"
@@ -3893,13 +3889,13 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
 
                         auto fpWaitForSingleObjectOnFence =
                             config->FGFPTAllowWaitForSingleObjectOnFence.value_or_default();
-                        if (ImGui::Checkbox("Enable WaitForSingleObjectOnFence", &fpWaitForSingleObjectOnFence))
+                        if (ImGui::Checkbox(MenuI18n::Label("Enable WaitForSingleObjectOnFence"), &fpWaitForSingleObjectOnFence))
                         {
                             config->FGFPTAllowWaitForSingleObjectOnFence = fpWaitForSingleObjectOnFence;
                         }
                         ShowHelpMarker("Allows WaitForSingleObject instead of spinning for fence value");
 
-                        if (ImGui::Button("Apply Timing Changes"))
+                        if (ImGui::Button(MenuI18n::Label("Apply Timing Changes")))
                             state.fsrfgFramePaceTuningChanged = true;
 
                         ImGui::EndDisabled();
@@ -3918,7 +3914,7 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
         state.activeFgInput != FGInput::ForceXeLL && state.currentFGSwapchain != nullptr && XeFGProxy::InitXeFG() &&
         fgOutput)
     {
-        ImGui::SeparatorText("Frame Generation (XeFG)");
+        ImGui::SeparatorText(MenuI18n::Text("Frame Generation (XeFG)"));
 
         bool ignoreChecks = config->FGXeFGIgnoreInitChecks.value_or_default();
 
@@ -3942,19 +3938,19 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
         bool cantActivate = false;
         if (restartNeeded)
         {
-            ImGui::TextColored(toneMapColor(ImVec4(1.f, 0.8f, 0.f, 1.f)),
+            MenuI18nUI::TextColored(toneMapColor(ImVec4(1.f, 0.8f, 0.f, 1.f)),
                                "Restart the game to apply correct XeFG settings!");
         }
         else
         {
             if (!correctMVs)
-                ImGui::TextColored(toneMapColor(ImVec4(1.f, 0.f, 0.f, 1.f)),
+                MenuI18nUI::TextColored(toneMapColor(ImVec4(1.f, 0.f, 0.f, 1.f)),
                                    "Requires disabling dilated motion vectors");
 
             if (!ignoreChecks && state.realExclusiveFullscreen)
             {
                 cantActivate = true;
-                ImGui::TextColored(toneMapColor(ImVec4(1.f, 0.f, 0.f, 1.f)), "Borderless display mode required!");
+                MenuI18nUI::TextColored(toneMapColor(ImVec4(1.f, 0.f, 0.f, 1.f)), "Borderless display mode required!");
             }
 
             if (!ignoreChecks && state.isHdrActive)
@@ -3963,14 +3959,14 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
                     state.currentSwapchainDesc.BufferDesc.Format <= DXGI_FORMAT_R16G16B16A16_SINT)
                 {
                     cantActivate = true;
-                    ImGui::TextColored(toneMapColor(ImVec4(1.0f, 0.0f, 0.0f, 1.f)), "XeFG only supports HDR10");
+                    MenuI18nUI::TextColored(toneMapColor(ImVec4(1.0f, 0.0f, 0.0f, 1.f)), "XeFG only supports HDR10");
                 }
             }
         }
 
         if (!correctMVs || cantActivate || ignoreChecks)
         {
-            if (ImGui::Checkbox("Ignore Init Checks", &ignoreChecks))
+            if (ImGui::Checkbox(MenuI18n::Label("Ignore Init Checks"), &ignoreChecks))
                 config->FGXeFGIgnoreInitChecks = ignoreChecks;
 
             ShowHelpMarker("Ignores all prechecks for XeFG\n"
@@ -3981,7 +3977,7 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
         ImGui::BeginDisabled(!correctMVs || cantActivate);
 
         bool fgActive = config->FGEnabled.value_or_default();
-        if (ImGui::Checkbox("Active##3", &fgActive))
+        if (ImGui::Checkbox(MenuI18n::Label("Active##3"), &fgActive))
         {
             config->FGEnabled = fgActive;
             LOG_DEBUG("Enabled set FGEnabled: {}", fgActive);
@@ -4004,11 +4000,11 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
 
             ImGui::PushItemWidth(95.0f * menuResScale);
 
-            if (ImGui::BeginCombo("MFG", currentIntCount))
+            if (ImGui::BeginCombo(MenuI18n::Label("MFG"), MenuI18n::Text(currentIntCount)))
             {
                 for (int i = 0; i < maxInterpolationCount; i++)
                 {
-                    if (ImGui::Selectable(intModes[i], (currentSet == i)))
+                    if (ImGui::Selectable(MenuI18n::Label(intModes[i]), (currentSet == i)))
                     {
                         LOG_DEBUG("XeFG Interpolation Count set to: {}", i + 1);
                         state.fgChanged = true;
@@ -4027,7 +4023,7 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
         ImGui::SameLine(0.0f, 16.0f);
         ImGui::BeginDisabled(!fgOutput->IsUsingHudlessAny() || XeFGProxy::SetUiCompositionState() == nullptr);
         bool fgCompositeUI = config->FGXeFGUIComposition.value_or_default();
-        if (ImGui::Checkbox("UI Composition", &fgCompositeUI))
+        if (ImGui::Checkbox(MenuI18n::Label("UI Composition"), &fgCompositeUI))
             config->FGXeFGUIComposition = fgCompositeUI;
 
         ShowHelpMarker("Disable HUD/UI interpolation\n"
@@ -4036,7 +4032,7 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
         ImGui::EndDisabled();
 
         bool fgDV = config->FGXeFGDebugView.value_or_default();
-        if (ImGui::Checkbox("Debug View##2", &fgDV))
+        if (ImGui::Checkbox(MenuI18n::Label("Debug View##2"), &fgDV))
         {
             config->FGXeFGDebugView = fgDV;
 
@@ -4052,7 +4048,7 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
 
         ImGui::SameLine(0.0f, 16.0f);
         bool fgBorderless = config->FGXeFGForceBorderless.value_or_default();
-        if (ImGui::Checkbox("Force Borderless", &fgBorderless))
+        if (ImGui::Checkbox(MenuI18n::Label("Force Borderless"), &fgBorderless))
             config->FGXeFGForceBorderless = fgBorderless;
 
         ShowHelpMarker("Forces Borderless display mode\n\n"
@@ -4070,25 +4066,25 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
         if (auto ch = ScopedCollapsingHeader("Extended XeFG Settings"); ch.IsHeaderOpen())
         {
             ImGui::Spacing();
-            if (ImGui::TreeNode("Rectangle Settings"))
+            if (ImGui::TreeNode(MenuI18n::Label("Rectangle Settings")))
             {
                 ImGui::PushItemWidth(95.0f * menuResScale);
                 int rectLeft = config->FGRectLeft.value_or(0);
-                if (ImGui::InputInt("Rect Left##2", &rectLeft))
+                if (ImGui::InputInt(MenuI18n::Label("Rect Left##2"), &rectLeft))
                     config->FGRectLeft = rectLeft;
 
                 ImGui::SameLine(0.0f, 16.0f);
                 int rectTop = config->FGRectTop.value_or(0);
-                if (ImGui::InputInt("Rect Top##2", &rectTop))
+                if (ImGui::InputInt(MenuI18n::Label("Rect Top##2"), &rectTop))
                     config->FGRectTop = rectTop;
 
                 int rectWidth = config->FGRectWidth.value_or(0);
-                if (ImGui::InputInt("Rect Width##2", &rectWidth))
+                if (ImGui::InputInt(MenuI18n::Label("Rect Width##2"), &rectWidth))
                     config->FGRectWidth = rectWidth;
 
                 ImGui::SameLine(0.0f, 16.0f);
                 int rectHeight = config->FGRectHeight.value_or(0);
-                if (ImGui::InputInt("Rect Height##2", &rectHeight))
+                if (ImGui::InputInt(MenuI18n::Label("Rect Height##2"), &rectHeight))
                     config->FGRectHeight = rectHeight;
 
                 ImGui::PopItemWidth();
@@ -4097,7 +4093,7 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
                 ImGui::BeginDisabled(!config->FGRectLeft.has_value() && !config->FGRectTop.has_value() &&
                                      !config->FGRectWidth.has_value() && !config->FGRectHeight.has_value());
 
-                if (ImGui::Button("Reset FG Rect##2"))
+                if (ImGui::Button(MenuI18n::Label("Reset FG Rect##2")))
                 {
                     config->FGRectLeft.reset();
                     config->FGRectTop.reset();
@@ -4120,30 +4116,30 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
     if (state.activeFgOutput == FGOutput::DLSSG && state.activeFgInput != FGInput::NoFG &&
         state.currentFGSwapchain != nullptr && StreamlineProxy::LoadStreamline() && fgOutput)
     {
-        ImGui::SeparatorText("Frame Generation (DLSSG)");
+        ImGui::SeparatorText(MenuI18n::Text("Frame Generation (DLSSG)"));
 
         if (state.activeFgNvngx == FGNvngxReplacement::None && state.isHdrActive)
         {
             if (state.currentSwapchainDesc.BufferDesc.Format >= DXGI_FORMAT_R32G32B32A32_TYPELESS &&
                 state.currentSwapchainDesc.BufferDesc.Format <= DXGI_FORMAT_R16G16B16A16_SINT)
             {
-                ImGui::TextColored(toneMapColor(ImVec4(1.0f, 0.0f, 0.0f, 1.f)), "DLSSG only supports HDR10");
+                MenuI18nUI::TextColored(toneMapColor(ImVec4(1.0f, 0.0f, 0.0f, 1.f)), "DLSSG only supports HDR10");
             }
         }
 
-        ImGui::Text("Current DLSSG state:");
+        MenuI18nUI::Text("Current DLSSG state:");
         ImGui::SameLine();
         if (auto count = state.dlssgDetectedInterpolationCount; count > 0)
         {
-            ImGui::TextColored(toneMapColor(ImVec4(0.f, 1.f, 0.25f, 1.f)), std::format("ON {}x", count + 1).c_str());
+            MenuI18nUI::TextColored(toneMapColor(ImVec4(0.f, 1.f, 0.25f, 1.f)), std::format("ON {}x", count + 1).c_str());
         }
         else
         {
-            ImGui::TextColored(toneMapColor(ImVec4(1.f, 0.f, 0.f, 1.f)), "OFF");
+            MenuI18nUI::TextColored(toneMapColor(ImVec4(1.f, 0.f, 0.f, 1.f)), "OFF");
         }
 
         bool fgActive = config->FGEnabled.value_or_default();
-        if (ImGui::Checkbox("Active##4", &fgActive))
+        if (ImGui::Checkbox(MenuI18n::Label("Active##4"), &fgActive))
         {
             config->FGEnabled = fgActive;
             LOG_DEBUG("Enabled set FGEnabled: {}", fgActive);
@@ -4168,11 +4164,11 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
 
             ImGui::PushItemWidth(95.0f * menuResScale);
 
-            if (ImGui::BeginCombo("MFG", currentIntCount))
+            if (ImGui::BeginCombo(MenuI18n::Label("MFG"), MenuI18n::Text(currentIntCount)))
             {
                 for (int i = 0; i < maxInterpolationCount; i++)
                 {
-                    if (ImGui::Selectable(intModes[i], (currentSet == i)))
+                    if (ImGui::Selectable(MenuI18n::Label(intModes[i]), (currentSet == i)))
                     {
                         LOG_DEBUG("DLSSG Interpolation Count set to: {}", i + 1);
                         config->FGDLSSGInterpolationCount = i + 1;
@@ -4193,25 +4189,25 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
                 ImGui::SameLine(0.0f, 16.0f);
 
                 if (bool dynamicMFG = config->FGDLSSGForceDMFG.value_or_default();
-                    ImGui::Checkbox("Force Dynamic MFG", &dynamicMFG))
+                    ImGui::Checkbox(MenuI18n::Label("Force Dynamic MFG"), &dynamicMFG))
                 {
                     config->FGDLSSGForceDMFG = dynamicMFG;
                 }
 
                 ImGui::BeginDisabled(!config->FGDLSSGForceDMFG.value_or_default());
                 static float fpsTarget = config->FGDLSSGFramerateTargetDMFG.value_or_default();
-                ImGui::SliderFloat("DMFG FPS Target", &fpsTarget, 0, 200, "%.0f");
+                ImGui::SliderFloat(MenuI18n::Label("DMFG FPS Target"), &fpsTarget, 0, 200, "%.0f");
 
                 ShowHelpMarker("An active limit of 0 means auto-detect the display refresh rate");
 
-                if (ImGui::Button("Apply Target"))
+                if (ImGui::Button(MenuI18n::Label("Apply Target")))
                 {
                     config->FGDLSSGFramerateTargetDMFG = fpsTarget;
                 }
 
                 ImGui::SameLine(0.0f, 16.0f);
 
-                if (ImGui::Button("Reset Target"))
+                if (ImGui::Button(MenuI18n::Label("Reset Target")))
                 {
                     fpsTarget = 0.0f;
                     config->FGDLSSGFramerateTargetDMFG.reset();
@@ -4223,7 +4219,7 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
 
         bool useGamesMarkers = config->FGDLSSGUseGamesReflexMarkers.value_or_default();
         ImGui::BeginDisabled(!ReflexHooks::gameIsSendingMarkers());
-        if (ImGui::Checkbox("Use Game's Reflex Markers", &useGamesMarkers))
+        if (ImGui::Checkbox(MenuI18n::Label("Use Game's Reflex Markers"), &useGamesMarkers))
         {
             config->FGDLSSGUseGamesReflexMarkers = useGamesMarkers;
             LOG_DEBUG("Changed set FGDLSSGUseGamesReflexMarkers: {}", useGamesMarkers);
@@ -4246,7 +4242,7 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
             {
                 bool fgHudfix = config->FGHUDFix.value_or_default();
 
-                if (ImGui::Checkbox("HUDFix", &fgHudfix))
+                if (ImGui::Checkbox(MenuI18n::Label("HUDFix"), &fgHudfix))
                 {
                     config->FGHUDFix = fgHudfix;
                     LOG_DEBUG("Enabled set FGHUDFix: {}", fgHudfix);
@@ -4261,7 +4257,7 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
                 ImGui::SameLine(0.0f, 16.0f);
                 ImGui::PushItemWidth(95.0f * menuResScale);
                 int hudFixLimit = config->FGHUDLimit.value_or_default();
-                if (ImGui::InputInt("Limit", &hudFixLimit))
+                if (ImGui::InputInt(MenuI18n::Label("Limit"), &hudFixLimit))
                 {
                     if (hudFixLimit < 1)
                         hudFixLimit = 1;
@@ -4274,13 +4270,13 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
                 ShowHelpMarker("Delay HUDless capture, high values might cause crash!");
 
                 ImGui::SameLine(0.0f, 16.0f);
-                if (ImGui::Button("Res##2"))
+                if (ImGui::Button(MenuI18n::Label("Res##2")))
                     _showHudlessWindow = !_showHudlessWindow;
 
                 ImGui::EndDisabled();
 
                 auto hudExtended = config->FGHUDFixExtended.value_or_default();
-                if (ImGui::Checkbox("Extended", &hudExtended))
+                if (ImGui::Checkbox(MenuI18n::Label("Extended"), &hudExtended))
                 {
                     LOG_DEBUG("Enabled set FGHUDFixExtended: {}", hudExtended);
                     config->FGHUDFixExtended = hudExtended;
@@ -4291,7 +4287,7 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
                 ImGui::BeginDisabled(!config->FGHUDFix.value_or_default());
 
                 auto immediate = config->FGImmediateCapture.value_or_default();
-                if (ImGui::Checkbox("Immediate Capture", &immediate))
+                if (ImGui::Checkbox(MenuI18n::Label("Immediate Capture"), &immediate))
                 {
                     LOG_DEBUG("Enabled set FGImmediateCapture: {}", immediate);
                     config->FGImmediateCapture = immediate;
@@ -4305,19 +4301,19 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
             }
 
             bool depthScale = config->FGEnableDepthScale.value_or_default();
-            if (ImGui::Checkbox("Scale Depth to fix DLSS RR", &depthScale))
+            if (ImGui::Checkbox(MenuI18n::Label("Scale Depth to fix DLSS RR"), &depthScale))
                 config->FGEnableDepthScale = depthScale;
             ShowHelpMarker("Fix for DLSS-D wrong depth inputs");
 
             bool resourceFlip = config->FGResourceFlip.value_or_default();
-            if (ImGui::Checkbox("Flip (Unity)", &resourceFlip))
+            if (ImGui::Checkbox(MenuI18n::Label("Flip (Unity)"), &resourceFlip))
                 config->FGResourceFlip = resourceFlip;
             ShowHelpMarker("Flip Velocity & Depth resources of Unity games");
 
             ImGui::SameLine(0.0f, 16.0f);
 
             bool resourceFlipOffset = config->FGResourceFlipOffset.value_or_default();
-            if (ImGui::Checkbox("Flip Use Offset", &resourceFlipOffset))
+            if (ImGui::Checkbox(MenuI18n::Label("Flip Use Offset"), &resourceFlipOffset))
                 config->FGResourceFlipOffset = resourceFlipOffset;
             ShowHelpMarker("Use height difference as offset");
 
@@ -4333,7 +4329,7 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
                     ImGui::Spacing();
 
                     auto rb = config->FGResourceBlocking.value_or_default();
-                    if (ImGui::Checkbox("Resource Blocking", &rb))
+                    if (ImGui::Checkbox(MenuI18n::Label("Resource Blocking"), &rb))
                     {
                         config->FGResourceBlocking = rb;
                         LOG_DEBUG("Enabled set FGResourceBlocking: {}", rb);
@@ -4345,7 +4341,7 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
                     ImGui::SameLine(0.0f, 16.0f);
 
                     auto rrc = config->FGRelaxedResolutionCheck.value_or_default();
-                    if (ImGui::Checkbox("Relaxed Resource Check", &rrc))
+                    if (ImGui::Checkbox(MenuI18n::Label("Relaxed Resource Check"), &rrc))
                     {
                         config->FGRelaxedResolutionCheck = rrc;
                         LOG_DEBUG("Enabled set FGRelaxedResolutionCheck: {}", rrc);
@@ -4356,7 +4352,7 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
 
                     ImGui::BeginDisabled(state.fgResetCapturedResources);
                     ImGui::PushItemWidth(95.0f * menuResScale);
-                    if (ImGui::Checkbox("FG Create List", &state.fgCaptureResources))
+                    if (ImGui::Checkbox(MenuI18n::Label("FG Create List"), &state.fgCaptureResources))
                     {
                         if (!state.fgCaptureResources)
                             config->FGHUDLimit = 1;
@@ -4365,7 +4361,7 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
                     }
 
                     ImGui::SameLine(0.0f, 16.0f);
-                    if (ImGui::Checkbox("FG Use List", &state.fgOnlyUseCapturedResources))
+                    if (ImGui::Checkbox(MenuI18n::Label("FG Use List"), &state.fgOnlyUseCapturedResources))
                     {
                         if (state.fgCaptureResources)
                         {
@@ -4375,13 +4371,13 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
                     }
 
                     ImGui::SameLine(0.0f, 8.0f);
-                    ImGui::Text("(%d)", state.fgCapturedResourceCount);
+                    MenuI18nUI::Text("(%d)", state.fgCapturedResourceCount);
 
                     ImGui::PopItemWidth();
 
                     ImGui::SameLine(0.0f, 16.0f);
 
-                    if (ImGui::Button("Reset List"))
+                    if (ImGui::Button(MenuI18n::Label("Reset List")))
                     {
                         LOG_DEBUG("Resetting captured resource list");
 
@@ -4393,10 +4389,10 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
 
                     ImGui::Spacing();
                     ImGui::Spacing();
-                    if (ImGui::TreeNode("Tracking Settings"))
+                    if (ImGui::TreeNode(MenuI18n::Label("Tracking Settings")))
                     {
                         auto ath = config->FGAlwaysTrackHeaps.value_or_default();
-                        if (ImGui::Checkbox("Always Track Heaps", &ath))
+                        if (ImGui::Checkbox(MenuI18n::Label("Always Track Heaps"), &ath))
                         {
                             config->FGAlwaysTrackHeaps = ath;
                             LOG_DEBUG("Enabled set FGAlwaysTrackHeaps: {}", ath);
@@ -4405,7 +4401,7 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
                                        "fix HUDFix related crashes!");
 
                         auto disableRTV = config->FGHudfixDisableRTV.value_or_default();
-                        if (ImGui::Checkbox("Disable RTV Tracking", &disableRTV))
+                        if (ImGui::Checkbox(MenuI18n::Label("Disable RTV Tracking"), &disableRTV))
                             config->FGHudfixDisableRTV = disableRTV;
                         ShowHelpMarker("Disable tracking of CreateRenderTargetView\n"
                                        "This might help filtering of wrong HUDless resources");
@@ -4413,13 +4409,13 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
                         ImGui::SameLine(0.0f, 16.0f);
 
                         auto disableSRV = config->FGHudfixDisableSRV.value_or_default();
-                        if (ImGui::Checkbox("Disable SRV Tracking", &disableSRV))
+                        if (ImGui::Checkbox(MenuI18n::Label("Disable SRV Tracking"), &disableSRV))
                             config->FGHudfixDisableSRV = disableSRV;
                         ShowHelpMarker("Disable tracking of CreateShaderResourceView\n"
                                        "This might help filtering of wrong HUDless resources");
 
                         auto disableUAV = config->FGHudfixDisableUAV.value_or_default();
-                        if (ImGui::Checkbox("Disable UAV Tracking", &disableUAV))
+                        if (ImGui::Checkbox(MenuI18n::Label("Disable UAV Tracking"), &disableUAV))
                             config->FGHudfixDisableUAV = disableUAV;
                         ShowHelpMarker("Disable tracking of CreateUnorderedAccessView\n"
                                        "This might help filtering of wrong HUDless resources");
@@ -4427,13 +4423,13 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
                         ImGui::SameLine(0.0f, 16.0f);
 
                         auto disableOM = config->FGHudfixDisableOM.value_or_default();
-                        if (ImGui::Checkbox("Disable OM Tracking", &disableOM))
+                        if (ImGui::Checkbox(MenuI18n::Label("Disable OM Tracking"), &disableOM))
                             config->FGHudfixDisableOM = disableOM;
                         ShowHelpMarker("Disable tracking of OMSetRenderTargets\n"
                                        "This might help filtering of wrong HUDless resources");
 
                         auto disableSCR = config->FGHudfixDisableSCR.value_or_default();
-                        if (ImGui::Checkbox("Disable SCR Tracking", &disableSCR))
+                        if (ImGui::Checkbox(MenuI18n::Label("Disable SCR Tracking"), &disableSCR))
                             config->FGHudfixDisableSCR = disableSCR;
                         ShowHelpMarker("Disable tracking of SetComputeRootDescriptorTable\n"
                                        "This might help filtering of wrong HUDless resources");
@@ -4441,7 +4437,7 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
                         ImGui::SameLine(0.0f, 16.0f);
 
                         auto disableSGR = config->FGHudfixDisableSGR.value_or_default();
-                        if (ImGui::Checkbox("Disable SGR Tracking", &disableSGR))
+                        if (ImGui::Checkbox(MenuI18n::Label("Disable SGR Tracking"), &disableSGR))
                             config->FGHudfixDisableSGR = disableSGR;
                         ShowHelpMarker("Disable tracking of SetGraphicsRootDescriptorTable\n"
                                        "This might help filtering of wrong HUDless resources");
@@ -4449,7 +4445,7 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
                         ImGui::Spacing();
 
                         auto disableDI = config->FGHudfixDisableDI.value_or_default();
-                        if (ImGui::Checkbox("Disable DI Tracking", &disableDI))
+                        if (ImGui::Checkbox(MenuI18n::Label("Disable DI Tracking"), &disableDI))
                             config->FGHudfixDisableDI = disableDI;
                         ShowHelpMarker("Disable tracking of DrawInstanced\n"
                                        "This might help filtering of wrong HUDless resources");
@@ -4457,13 +4453,13 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
                         ImGui::SameLine(0.0f, 16.0f);
 
                         auto disableDII = config->FGHudfixDisableDII.value_or_default();
-                        if (ImGui::Checkbox("Disable DII Tracking", &disableDII))
+                        if (ImGui::Checkbox(MenuI18n::Label("Disable DII Tracking"), &disableDII))
                             config->FGHudfixDisableDII = disableDII;
                         ShowHelpMarker("Disable tracking of DrawIndexedInstanced\n"
                                        "This might help filtering of wrong HUDless resources");
 
                         auto disableDispatch = config->FGHudfixDisableDispatch.value_or_default();
-                        if (ImGui::Checkbox("Disable Dispatch Tracking", &disableDispatch))
+                        if (ImGui::Checkbox(MenuI18n::Label("Disable Dispatch Tracking"), &disableDispatch))
                             config->FGHudfixDisableDispatch = disableDispatch;
                         ShowHelpMarker("Disable tracking of Dispatch\n"
                                        "This might help filtering of wrong HUDless resources");
@@ -4473,23 +4469,23 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
                 }
 
                 ImGui::Spacing();
-                if (ImGui::TreeNode("Resource Settings"))
+                if (ImGui::TreeNode(MenuI18n::Label("Resource Settings")))
                 {
                     bool makeMVCopies = config->FGMakeMVCopy.value_or_default();
-                    if (ImGui::Checkbox("FG Make MV Copies", &makeMVCopies))
+                    if (ImGui::Checkbox(MenuI18n::Label("FG Make MV Copies"), &makeMVCopies))
                         config->FGMakeMVCopy = makeMVCopies;
                     ShowHelpMarker("Make a copy of motion vectors to use with OptiFG\n"
                                    "For preventing corruptions that might happen");
 
                     bool makeDepthCopies = config->FGMakeDepthCopy.value_or_default();
-                    if (ImGui::Checkbox("FG Make Depth Copies", &makeDepthCopies))
+                    if (ImGui::Checkbox(MenuI18n::Label("FG Make Depth Copies"), &makeDepthCopies))
                         config->FGMakeDepthCopy = makeDepthCopies;
                     ShowHelpMarker("Make a copy of depth to use with OptiFG\n"
                                    "For preventing corruptions that might happen");
 
                     ImGui::PushItemWidth(115.0f * menuResScale);
                     float depthScaleMax = config->FGDepthScaleMax.value_or_default();
-                    if (ImGui::InputFloat("FG Scale Depth Max", &depthScaleMax, 10.0f, 100.0f, "%.1f"))
+                    if (ImGui::InputFloat(MenuI18n::Label("FG Scale Depth Max"), &depthScaleMax, 10.0f, 100.0f, "%.1f"))
                         config->FGDepthScaleMax = depthScaleMax;
                     ShowHelpMarker("Depth values will be divided to this value");
                     ImGui::PopItemWidth();
@@ -4498,10 +4494,10 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
                 }
 
                 ImGui::Spacing();
-                if (ImGui::TreeNode("Syncing Settings"))
+                if (ImGui::TreeNode(MenuI18n::Label("Syncing Settings")))
                 {
                     bool useMutexForPresent = config->FGUseMutexForSwapchain.value_or_default();
-                    if (ImGui::Checkbox("FG Use Mutex for Present", &useMutexForPresent))
+                    if (ImGui::Checkbox(MenuI18n::Label("FG Use Mutex for Present"), &useMutexForPresent))
                         config->FGUseMutexForSwapchain = useMutexForPresent;
                     ShowHelpMarker("Use mutex to prevent desync of FG and crashes\n"
                                    "Disabling might improve the perf but decrease stability");
@@ -4515,16 +4511,16 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
         }
         else if (currentFeature == nullptr || currentFeature->IsFrozen())
         {
-            ImGui::Text("Upscaler is not active"); // Probably never will be visible
+            MenuI18nUI::Text("Upscaler is not active"); // Probably never will be visible
         }
         else if (state.activeFgOutput == FGOutput::FSRFG && !FfxApiProxy::IsFGReady())
         {
-            ImGui::TextColored(toneMapColor({ 1.0f, 0.0f, 0.0f, 1.0f }),
+            MenuI18nUI::TextColored(toneMapColor({ 1.0f, 0.0f, 0.0f, 1.0f }),
                                "amd_fidelityfx_dx12.dll is missing!"); // Probably never will be visible
         }
         else if (state.activeFgOutput == FGOutput::XeFG && XeFGProxy::Module() == nullptr)
         {
-            ImGui::TextColored(toneMapColor({ 1.0f, 0.0f, 0.0f, 1.0f }),
+            MenuI18nUI::TextColored(toneMapColor({ 1.0f, 0.0f, 0.0f, 1.0f }),
                                "libxess_fg.dll is missing!"); // Probably never will be visible
         }
     }
@@ -4539,7 +4535,7 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
 
             if (!state.nukemsFgFileAvailable)
             {
-                ImGui::TextColored(toneMapColor(ImVec4(1.f, 0.f, 0.f, 1.f)),
+                MenuI18nUI::TextColored(toneMapColor(ImVec4(1.f, 0.f, 0.f, 1.f)),
                                    "Please put dlssg_to_fsr3_amd_is_better.dll into OptiScaler folder");
             }
         }
@@ -4550,11 +4546,11 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
 
             if (!state.artursFgFileAvailable)
             {
-                ImGui::TextColored(toneMapColor(ImVec4(1.f, 0.f, 0.f, 1.f)),
+                MenuI18nUI::TextColored(toneMapColor(ImVec4(1.f, 0.f, 0.f, 1.f)),
                                    "Please put dlss-enabler-headless.dll into OptiScaler folder");
             }
 
-            ImGui::TextColored(toneMapColor(ImVec4(1.f, 0.8f, 0.f, 1.f)),
+            MenuI18nUI::TextColored(toneMapColor(ImVec4(1.f, 0.8f, 0.f, 1.f)),
                                "Using a subset of features from DLSS Enabler");
         }
         else if (activeNvngxFg == FGNvngxReplacement::FFX)
@@ -4575,27 +4571,27 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
 
             if (!ReflexHooks::isReflexHooked())
             {
-                ImGui::TextColored(toneMapColor(ImVec4(1.f, 0.f, 0.f, 1.f)), "Reflex not hooked");
-                ImGui::Text("If you are using an AMD/Intel GPU, then make sure you have Fakenvapi");
+                MenuI18nUI::TextColored(toneMapColor(ImVec4(1.f, 0.f, 0.f, 1.f)), "Reflex not hooked");
+                MenuI18nUI::Text("If you are using an AMD/Intel GPU, then make sure you have Fakenvapi");
             }
             else if (ReflexHooks::dlssgFrameCountToGenerate() == 0 && !dmfgActive)
             {
-                ImGui::Text("Please select DLSS Frame Generation in the game options\n"
+                MenuI18nUI::Text("Please select DLSS Frame Generation in the game options\n"
                             "You might need to select DLSS first");
             }
 
             if (state.swapchainApi == DX12)
             {
-                ImGui::Text("Current DLSSG state:");
+                MenuI18nUI::Text("Current DLSSG state:");
                 ImGui::SameLine();
                 if (auto count = state.dlssgDetectedInterpolationCount; count > 0)
                 {
-                    ImGui::TextColored(toneMapColor(ImVec4(0.f, 1.f, 0.25f, 1.f)),
+                    MenuI18nUI::TextColored(toneMapColor(ImVec4(0.f, 1.f, 0.25f, 1.f)),
                                        std::format("ON {}x", count + 1).c_str());
                 }
                 else
                 {
-                    ImGui::TextColored(toneMapColor(ImVec4(1.f, 0.f, 0.f, 1.f)), "OFF");
+                    MenuI18nUI::TextColored(toneMapColor(ImVec4(1.f, 0.f, 0.f, 1.f)), "OFF");
                 }
 
                 // Issue mostly shows up on AMD on Windows on pre-RDNA3 in some non-UE games
@@ -4608,7 +4604,7 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
                     !primaryGpu.usesVkd3dProton && !isUnrealEngine)
                 {
                     if (bool makeDepthCopy = config->NvngxFGMakeDepthCopy.value_or_default();
-                        ImGui::Checkbox("Fix broken visuals", &makeDepthCopy))
+                        ImGui::Checkbox(MenuI18n::Label("Fix broken visuals"), &makeDepthCopy))
                     {
                         config->NvngxFGMakeDepthCopy = makeDepthCopy;
                     }
@@ -4618,7 +4614,7 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
             }
             else if (state.swapchainApi == Vulkan)
             {
-                ImGui::TextColored(toneMapColor(ImVec4(1.f, 0.8f, 0.f, 1.f)),
+                MenuI18nUI::TextColored(toneMapColor(ImVec4(1.f, 0.8f, 0.f, 1.f)),
                                    "DLSSG is purposefully disabled when this menu is visible");
                 ImGui::Spacing();
             }
@@ -4636,7 +4632,7 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
             {
                 auto featureVer = Nvngx_FG::version();
                 auto antighostingVer = Nvngx_FG::extraVersion();
-                ImGui::Text("DE Ver: %d.%d.%d.%d   GB Ver: %d.%d", featureVer.major, featureVer.minor, featureVer.patch,
+                MenuI18nUI::Text("DE Ver: %d.%d.%d.%d   GB Ver: %d.%d", featureVer.major, featureVer.minor, featureVer.patch,
                             featureVer.reserved, antighostingVer.major, antighostingVer.minor);
 
                 static std::vector<FlagDefinition> common_flags = {
@@ -4666,13 +4662,13 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
                 uint32_t temp_flags = config->NvngxFGDispatchFlags.value_or_default();
                 bool changed = false;
 
-                ImGui::Text("Raw DispatchFlags:");
-                changed |= ImGui::InputScalar("##RawFlags", ImGuiDataType_U32, &temp_flags, NULL, NULL, "%08X",
+                MenuI18nUI::Text("Raw DispatchFlags:");
+                changed |= ImGui::InputScalar(MenuI18n::Label("##RawFlags"), ImGuiDataType_U32, &temp_flags, NULL, NULL, "%08X",
                                               ImGuiInputTextFlags_CharsHexadecimal);
 
                 ImGui::SameLine(0.0f, 20.0f * menuResScale);
                 if (bool showDebug = config->NvngxFGShowDebug.value_or_default();
-                    ImGui::Checkbox("Show Debug", &showDebug))
+                    ImGui::Checkbox(MenuI18n::Label("Show Debug"), &showDebug))
                 {
                     config->NvngxFGShowDebug = showDebug;
                 }
@@ -4688,26 +4684,26 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
                     {
                         for (const auto& flag : flags)
                         {
-                            changed |= ImGui::CheckboxFlags(flag.name.c_str(), &temp_flags, flag.mask);
+                            changed |= ImGui::CheckboxFlags(MenuI18n::Label(flag.name.c_str()), &temp_flags, flag.mask);
 
                             if (ImGui::IsItemHovered() && !flag.description.empty())
                             {
-                                ImGui::SetTooltip("%s", flag.description.c_str());
+                                MenuI18nUI::SetTooltip("%s", flag.description.c_str());
                             }
                         }
                     };
 
-                    ImGui::TextDisabled("Common");
+                    MenuI18nUI::TextDisabled("Common");
                     render_flags(common_flags);
 
                     ImGui::Spacing();
-                    ImGui::TextDisabled("Uncommon");
+                    MenuI18nUI::TextDisabled("Uncommon");
                     render_flags(uncommon_flags);
 
                     if (config->NvngxFGShowDebug.value_or_default())
                     {
                         ImGui::Spacing();
-                        ImGui::TextDisabled("Debug");
+                        MenuI18nUI::TextDisabled("Debug");
                         render_flags(debug_flags);
                     }
                 }
@@ -4720,11 +4716,11 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
 
             if (activeNvngxFg == FGNvngxReplacement::Nukems)
             {
-                if (ImGui::Checkbox("Enable Debug View", &state.dlssgDebugView))
+                if (ImGui::Checkbox(MenuI18n::Label("Enable Debug View"), &state.dlssgDebugView))
                 {
                     Nvngx_FG::setDebugView(state.dlssgDebugView);
                 }
-                if (ImGui::Checkbox("Interpolated frames only", &state.dlssgInterpolatedOnly))
+                if (ImGui::Checkbox(MenuI18n::Label("Interpolated frames only"), &state.dlssgInterpolatedOnly))
                 {
                     Nvngx_FG::setInterpolatedOnly(state.dlssgInterpolatedOnly);
                 }
@@ -4740,12 +4736,12 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
                     ImGui::PushItemWidth(135.0f * menuResScale);
 
                     auto currentName = StrFmt("FSR %s", state.ffxFGVersionNames[_ffxFGIndex]);
-                    if (ImGui::BeginCombo("FFX FG", currentName.c_str()))
+                    if (ImGui::BeginCombo(MenuI18n::Label("FFX FG"), MenuI18n::Text(currentName.c_str())))
                     {
                         for (int n = 0; n < state.ffxFGVersionIds.size(); n++)
                         {
                             auto name = StrFmt("FSR %s", state.ffxFGVersionNames[n]);
-                            if (ImGui::Selectable(name.c_str(), config->FfxFGIndex.value_or_default() == n))
+                            if (ImGui::Selectable(MenuI18n::Label(name.c_str()), config->FfxFGIndex.value_or_default() == n))
                                 _ffxFGIndex = n;
                         }
 
@@ -4757,7 +4753,7 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
 
                     ImGui::SameLine(0.0f, 6.0f);
 
-                    if (ImGui::Button("Change FG") && _ffxFGIndex != config->FfxFGIndex.value_or_default())
+                    if (ImGui::Button(MenuI18n::Label("Change FG")) && _ffxFGIndex != config->FfxFGIndex.value_or_default())
                     {
                         config->FfxFGIndex = _ffxFGIndex;
                         state.fgChanged = true;
@@ -4765,7 +4761,7 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
                 }
 
                 bool fgAsync = config->FGAsync.value_or_default();
-                if (ImGui::Checkbox("Allow Async##2", &fgAsync))
+                if (ImGui::Checkbox(MenuI18n::Label("Allow Async##2"), &fgAsync))
                 {
                     config->FGAsync = fgAsync;
 
@@ -4779,7 +4775,7 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
 
                 ImGui::SameLine(0.0f, 20.0f * menuResScale);
                 bool fgDV = config->FGDebugView.value_or_default();
-                if (ImGui::Checkbox("Debug View##3", &fgDV))
+                if (ImGui::Checkbox(MenuI18n::Label("Debug View##3"), &fgDV))
                 {
                     config->FGDebugView = fgDV;
 
@@ -4802,7 +4798,7 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
                 {
                     ImGui::SameLine(0.0f, 20.0f * menuResScale);
                     if (bool fgwm = config->FSRFGEnableWatermark.value_or_default();
-                        ImGui::Checkbox("Enable Watermark", &fgwm))
+                        ImGui::Checkbox(MenuI18n::Label("Enable Watermark"), &fgwm))
                     {
                         LOG_DEBUG("FSRFGEnableWatermark set FGWatermark: {}", fgwm);
                         config->FSRFGEnableWatermark = fgwm;
@@ -4814,7 +4810,7 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
             }
 
             if (bool disableHudless = config->NvngxFGDisableHudless.value_or_default();
-                ImGui::Checkbox("Disable HUDless", &disableHudless))
+                ImGui::Checkbox(MenuI18n::Label("Disable HUDless"), &disableHudless))
             {
                 config->NvngxFGDisableHudless = disableHudless;
             }
@@ -4831,25 +4827,25 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
         auto fgOutput = reinterpret_cast<IFGFeature_Dx12*>(state.currentFG);
         if (fgOutput != nullptr)
         {
-            ImGui::Text("Current FSR-FG state:");
+            MenuI18nUI::Text("Current FSR-FG state:");
             ImGui::SameLine();
             if (state.fsrfgInputActive)
             {
                 if (fgOutput->IsActive())
-                    ImGui::TextColored(toneMapColor(ImVec4(0.f, 1.f, 0.25f, 1.f)), "ON");
+                    MenuI18nUI::TextColored(toneMapColor(ImVec4(0.f, 1.f, 0.25f, 1.f)), "ON");
                 else
-                    ImGui::TextColored(toneMapColor(ImVec4(1.0f, 0.647f, 0.0f, 1.f)), "ACTIVATE FG");
+                    MenuI18nUI::TextColored(toneMapColor(ImVec4(1.0f, 0.647f, 0.0f, 1.f)), "ACTIVATE FG");
             }
             else
             {
-                ImGui::TextColored(toneMapColor(ImVec4(1.f, 0.f, 0.f, 1.f)), "OFF");
-                ImGui::Text("Please select FSR Frame Generation in the game options\n"
+                MenuI18nUI::TextColored(toneMapColor(ImVec4(1.f, 0.f, 0.f, 1.f)), "OFF");
+                MenuI18nUI::Text("Please select FSR Frame Generation in the game options\n"
                             "You might need to select FSR first");
             }
         }
 
         bool skipConfig = config->FSRFGSkipConfigForHudless.value_or_default();
-        if (ImGui::Checkbox("Skip Config for HUDless", &skipConfig))
+        if (ImGui::Checkbox(MenuI18n::Label("Skip Config for HUDless"), &skipConfig))
             config->FSRFGSkipConfigForHudless = skipConfig;
 
         ShowHelpMarker("Do not use HUDless set at ffxConfig");
@@ -4857,7 +4853,7 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
         ImGui::SameLine(0.0f, 6.0f);
 
         bool skipDispatch = config->FSRFGSkipDispatchForHudless.value_or_default();
-        if (ImGui::Checkbox("Skip Dispatch for HUDless", &skipDispatch))
+        if (ImGui::Checkbox(MenuI18n::Label("Skip Dispatch for HUDless"), &skipDispatch))
             config->FSRFGSkipDispatchForHudless = skipDispatch;
 
         ShowHelpMarker("Do not use HUDless set at ffxDispatch");
@@ -4872,24 +4868,24 @@ void MenuCommon::RenderFrameGenerationRuntimeSettings(RenderMenuContext& ctx)
 
         if (!ReflexHooks::isReflexHooked())
         {
-            ImGui::TextColored(toneMapColor(ImVec4(1.f, 0.f, 0.f, 1.f)), "Reflex not hooked");
-            ImGui::Text("If you are using an AMD/Intel GPU, then make sure you have fakenvapi");
+            MenuI18nUI::TextColored(toneMapColor(ImVec4(1.f, 0.f, 0.f, 1.f)), "Reflex not hooked");
+            MenuI18nUI::Text("If you are using an AMD/Intel GPU, then make sure you have fakenvapi");
         }
         else if (fgOutput != nullptr)
         {
-            ImGui::Text("Current Streamline FG state:");
+            MenuI18nUI::Text("Current Streamline FG state:");
             ImGui::SameLine();
             if ((state.fgLastFrame - state.dlssgLastFrame) < 3)
             {
                 if (fgOutput->IsActive())
-                    ImGui::TextColored(toneMapColor(ImVec4(0.f, 1.f, 0.25f, 1.f)), "ON");
+                    MenuI18nUI::TextColored(toneMapColor(ImVec4(0.f, 1.f, 0.25f, 1.f)), "ON");
                 else
-                    ImGui::TextColored(toneMapColor(ImVec4(1.0f, 0.647f, 0.0f, 1.f)), "ACTIVATE FG");
+                    MenuI18nUI::TextColored(toneMapColor(ImVec4(1.0f, 0.647f, 0.0f, 1.f)), "ACTIVATE FG");
             }
             else
             {
-                ImGui::TextColored(toneMapColor(ImVec4(1.f, 0.f, 0.f, 1.f)), "OFF");
-                ImGui::Text("Please select DLSS Frame Generation in the game options\n"
+                MenuI18nUI::TextColored(toneMapColor(ImVec4(1.f, 0.f, 0.f, 1.f)), "OFF");
+                MenuI18nUI::Text("Please select DLSS Frame Generation in the game options\n"
                             "You might need to select DLSS first");
             }
         }
@@ -4911,7 +4907,7 @@ void MenuCommon::RenderFsrCommonSettings(RenderMenuContext& ctx)
             SeparatorWithHelpMarker("FSR Common Settings", "Affects both FSR-FG & Upscalers");
 
             bool useFsrVales = config->FsrUseFsrInputValues.value_or_default();
-            if (ImGui::Checkbox("Use FSR Input Values", &useFsrVales))
+            if (ImGui::Checkbox(MenuI18n::Label("Use FSR Input Values"), &useFsrVales))
                 config->FsrUseFsrInputValues = useFsrVales;
 
             ImGui::Spacing();
@@ -4930,7 +4926,7 @@ void MenuCommon::RenderFsrCommonSettings(RenderMenuContext& ctx)
                 else if (!useVFov && !config->FsrHorizontalFov.has_value())
                     config->FsrHorizontalFov = hfov;
 
-                if (ImGui::RadioButton("Use Vert. Fov", useVFov))
+                if (ImGui::RadioButton(MenuI18n::Label("Use Vert. Fov"), useVFov))
                 {
                     config->FsrHorizontalFov.reset();
                     config->FsrVerticalFov = vfov;
@@ -4939,7 +4935,7 @@ void MenuCommon::RenderFsrCommonSettings(RenderMenuContext& ctx)
 
                 ImGui::SameLine(0.0f, 6.0f);
 
-                if (ImGui::RadioButton("Use Horz. Fov", !useVFov))
+                if (ImGui::RadioButton(MenuI18n::Label("Use Horz. Fov"), !useVFov))
                 {
                     config->FsrVerticalFov.reset();
                     config->FsrHorizontalFov = hfov;
@@ -4948,14 +4944,14 @@ void MenuCommon::RenderFsrCommonSettings(RenderMenuContext& ctx)
 
                 if (useVFov)
                 {
-                    if (ImGui::SliderFloat("Vert. FOV", &vfov, 0.0f, 180.0f, "%.1f"))
+                    if (ImGui::SliderFloat(MenuI18n::Label("Vert. FOV"), &vfov, 0.0f, 180.0f, "%.1f"))
                         config->FsrVerticalFov = vfov;
 
                     ShowHelpMarker("Might help achieve better image quality");
                 }
                 else
                 {
-                    if (ImGui::SliderFloat("Horz. FOV", &hfov, 0.0f, 180.0f, "%.1f"))
+                    if (ImGui::SliderFloat(MenuI18n::Label("Horz. FOV"), &hfov, 0.0f, 180.0f, "%.1f"))
                         config->FsrHorizontalFov = hfov;
 
                     ShowHelpMarker("Might help achieve better image quality");
@@ -4967,17 +4963,17 @@ void MenuCommon::RenderFsrCommonSettings(RenderMenuContext& ctx)
                 cameraNear = config->FsrCameraNear.value_or_default();
                 cameraFar = config->FsrCameraFar.value_or_default();
 
-                if (ImGui::SliderFloat("Camera Near", &cameraNear, 0.1f, 500000.0f, "%.1f"))
+                if (ImGui::SliderFloat(MenuI18n::Label("Camera Near"), &cameraNear, 0.1f, 500000.0f, "%.1f"))
                     config->FsrCameraNear = cameraNear;
                 ShowHelpMarker("Might help achieve better image quality\n"
                                "And potentially less ghosting");
 
-                if (ImGui::SliderFloat("Camera Far", &cameraFar, 0.1f, 500000.0f, "%.1f"))
+                if (ImGui::SliderFloat(MenuI18n::Label("Camera Far"), &cameraFar, 0.1f, 500000.0f, "%.1f"))
                     config->FsrCameraFar = cameraFar;
                 ShowHelpMarker("Might help achieve better image quality\n"
                                "And potentially less ghosting");
 
-                if (ImGui::Button("Reset Camera Values"))
+                if (ImGui::Button(MenuI18n::Label("Reset Camera Values")))
                 {
                     config->FsrVerticalFov.reset();
                     config->FsrHorizontalFov.reset();
@@ -4986,7 +4982,7 @@ void MenuCommon::RenderFsrCommonSettings(RenderMenuContext& ctx)
                 }
 
                 ImGui::SameLine(0.0f, 6.0f);
-                ImGui::Text("Near: %.1f Far: %.1f",
+                MenuI18nUI::Text("Near: %.1f Far: %.1f",
                             state.lastFsrCameraNear < 500000.0f ? state.lastFsrCameraNear : 500000.0f,
                             state.lastFsrCameraFar < 500000.0f ? state.lastFsrCameraFar : 500000.0f);
 
@@ -5033,7 +5029,7 @@ void MenuCommon::RenderFramerateSettings(RenderMenuContext& ctx)
 
             if (state.rtssReflexInjection && fakenvapiMode == LowLatencyMode::AntiLag2 &&
                 config->FGOutput.value_or_default() == FGOutput::FSRFG)
-                ImGui::TextColored(toneMapColor(ImVec4(1.f, 0.8f, 0.f, 1.f)),
+                MenuI18nUI::TextColored(toneMapColor(ImVec4(1.f, 0.8f, 0.f, 1.f)),
                                    "Using RTSS Reflex injection with FSR Anti-Lag 2.0 and FSR FG "
                                    "might cause issues");
         }
@@ -5054,14 +5050,14 @@ void MenuCommon::RenderFramerateSettings(RenderMenuContext& ctx)
         if (fakenvapiInactive)
             currentMethod.append(" (inactive)");
 
-        ImGui::Text("Current method: %s", currentMethod.c_str());
+        MenuI18nUI::Text("Current method: %s", currentMethod.c_str());
 
         if (fakenvapiMode == LowLatencyMode::AntiLag2)
             ShowHelpMarker("FSR Anti-Lag 2.0 is the new name for AntiLag 2\nDon't ask me why");
 
         if (state.reflexShowWarning)
         {
-            ImGui::TextColored(toneMapColor(ImVec4(1.f, 0.f, 0.f, 1.f)),
+            MenuI18nUI::TextColored(toneMapColor(ImVec4(1.f, 0.f, 0.f, 1.f)),
                                "Using Reflex's limit with FSR FG has performance overhead");
 
             ImGui::Spacing();
@@ -5071,16 +5067,16 @@ void MenuCommon::RenderFramerateSettings(RenderMenuContext& ctx)
         if (std::isinf(_limitFps))
             _limitFps = config->FramerateLimit.value_or_default();
 
-        ImGui::SliderFloat("FPS Limit", &_limitFps, 0, 200, "%.0f");
+        ImGui::SliderFloat(MenuI18n::Label("FPS Limit"), &_limitFps, 0, 200, "%.0f");
 
-        if (ImGui::Button("Apply Limit"))
+        if (ImGui::Button(MenuI18n::Label("Apply Limit")))
         {
             config->FramerateLimit = _limitFps;
         }
 
         ImGui::SameLine(0.0f, 16.0f);
 
-        if (ImGui::Button("Reset Limit"))
+        if (ImGui::Button(MenuI18n::Label("Reset Limit")))
         {
             _limitFps = 0.0f;
             config->FramerateLimit = _limitFps;
@@ -5093,7 +5089,7 @@ void MenuCommon::RenderFramerateSettings(RenderMenuContext& ctx)
             ImGui::Spacing();
 
             ImGui::PushItemWidth(105.0f * menuResScale);
-            ImGui::InputInt("Refresh Rate", &refreshRate, 1, 1, ImGuiInputTextFlags_None);
+            ImGui::InputInt(MenuI18n::Label("Refresh Rate"), &refreshRate, 1, 1, ImGuiInputTextFlags_None);
             ImGui::PopItemWidth();
 
             float refreshRateF = static_cast<float>(refreshRate);
@@ -5105,11 +5101,11 @@ void MenuCommon::RenderFramerateSettings(RenderMenuContext& ctx)
             if (fpsLimitTech == LowLatencyMode::AntiLag2 || fpsLimitTech == LowLatencyMode::AntiLagVk)
                 frameCap = std::round(frameCap);
 
-            ImGui::Text("Calculated Cap: %.1f", frameCap);
+            MenuI18nUI::Text("Calculated Cap: %.1f", frameCap);
 
             ImGui::SameLine(0.0f, 16.0f);
 
-            if (ImGui::Button("Set as FPS Limit"))
+            if (ImGui::Button(MenuI18n::Label("Set as FPS Limit")))
             {
                 _limitFps = frameCap;
                 config->FramerateLimit = _limitFps;
@@ -5124,7 +5120,7 @@ void MenuCommon::RenderFakenvapiSettings(RenderMenuContext& ctx)
     auto config = ctx.config;
 
     // FAKENVAPI ---------------------------
-    ImGui::SeparatorText("fakenvapi");
+    ImGui::SeparatorText(MenuI18n::Text("fakenvapi"));
 
     // Using state.reflexLimitsFps as a detection for Reflex being used on Nvidia
     bool showLatencyFlex =
@@ -5134,7 +5130,7 @@ void MenuCommon::RenderFakenvapiSettings(RenderMenuContext& ctx)
     {
         ImGui::BeginDisabled(state.activeFgOutput == FGOutput::XeFG || state.activeFgInput == FGInput::ForceXeLL);
         if (bool forceLFX = config->FN_ForceLatencyFlex.value_or_default();
-            ImGui::Checkbox("Force LatencyFlex", &forceLFX))
+            ImGui::Checkbox(MenuI18n::Label("Force LatencyFlex"), &forceLFX))
         {
             config->FN_ForceLatencyFlex = forceLFX;
         }
@@ -5150,7 +5146,7 @@ void MenuCommon::RenderFakenvapiSettings(RenderMenuContext& ctx)
     bool forceXell = config->ForceXeLL.value_or_default();
     static bool activeForceXeLL = forceXell;
 
-    if (ImGui::Checkbox("Force XeLL", &forceXell))
+    if (ImGui::Checkbox(MenuI18n::Label("Force XeLL"), &forceXell))
     {
         config->ForceXeLL = forceXell;
     }
@@ -5160,7 +5156,7 @@ void MenuCommon::RenderFakenvapiSettings(RenderMenuContext& ctx)
     if (activeForceXeLL != forceXell)
     {
         ImGui::Spacing();
-        ImGui::TextColored(toneMapColor(ImVec4(1.f, 0.f, 0.0f, 1.f)), "Save INI and restart to apply the changes");
+        MenuI18nUI::TextColored(toneMapColor(ImVec4(1.f, 0.f, 0.0f, 1.f)), "Save INI and restart to apply the changes");
         ImGui::Spacing();
     }
 
@@ -5211,7 +5207,7 @@ void MenuCommon::RenderLowLatencySettings(RenderMenuContext& ctx)
     auto config = ctx.config;
 
     // Low Latency ---------------------------
-    ImGui::SeparatorText("Low Latency");
+    ImGui::SeparatorText(MenuI18n::Text("Low Latency"));
 
     static std::vector<MenuOption<LowLatencyInput>> lowLatencyInput = {
         { LowLatencyInput::None, "None (Off)" },    { LowLatencyInput::Auto, "Auto" },
@@ -5238,11 +5234,11 @@ void MenuCommon::RenderLowLatencySettings(RenderMenuContext& ctx)
 
         ImGui::TableNextColumn();
 
-        ImGui::Text("Active input: %s", GetMenuOptionLabel(lowLatencyInput, activeInput).c_str());
+        MenuI18nUI::Text("Active input: %s", GetMenuOptionLabel(lowLatencyInput, activeInput).c_str());
 
         ImGui::TableNextColumn();
 
-        ImGui::Text("Active output: %s", GetMenuOptionLabel(lowLatencyOutput, activeOutput).c_str());
+        MenuI18nUI::Text("Active output: %s", GetMenuOptionLabel(lowLatencyOutput, activeOutput).c_str());
 
         ImGui::EndTable();
     }
@@ -5313,10 +5309,10 @@ void MenuCommon::RenderActiveImageSettings(RenderMenuContext& ctx)
     if (currentFeature != nullptr && !currentFeature->IsFrozen())
     {
         // SHARPNESS -----------------------------
-        ImGui::SeparatorText("Sharpness");
+        ImGui::SeparatorText(MenuI18n::Text("Sharpness"));
 
         if (bool overrideSharpness = config->OverrideSharpness.value_or_default();
-            ImGui::Checkbox("Override", &overrideSharpness))
+            ImGui::Checkbox(MenuI18n::Label("Override"), &overrideSharpness))
         {
             config->OverrideSharpness = overrideSharpness;
 
@@ -5333,15 +5329,15 @@ void MenuCommon::RenderActiveImageSettings(RenderMenuContext& ctx)
 
         float featuresCurrentSharpness = currentFeature->Sharpness();
         if (featuresCurrentSharpness > 0.0f)
-            ImGui::TextDisabled("(Current sharpness: %.3f)", featuresCurrentSharpness);
+            MenuI18nUI::TextDisabled("(Current sharpness: %.3f)", featuresCurrentSharpness);
         else
-            ImGui::TextDisabled("(Current sharpness: disabled)");
+            MenuI18nUI::TextDisabled("(Current sharpness: disabled)");
 
         ImGui::BeginDisabled(!config->OverrideSharpness.value_or_default());
 
         float sharpness = config->Sharpness.value_or_default();
 
-        if (ImGui::SliderFloat("Sharpness", &sharpness, 0.0f, 1.0f))
+        if (ImGui::SliderFloat(MenuI18n::Label("Sharpness"), &sharpness, 0.0f, 1.0f))
             config->Sharpness = sharpness;
 
         ImGui::EndDisabled();
@@ -5357,7 +5353,7 @@ void MenuCommon::RenderActiveImageSettings(RenderMenuContext& ctx)
             ImGui::Spacing();
             ImGui::Spacing();
 
-            if (bool rcas = config->RcasEnabled.value_or(rcasEnabled); ImGui::Checkbox("Enable RCAS/DA", &rcas))
+            if (bool rcas = config->RcasEnabled.value_or(rcasEnabled); ImGui::Checkbox(MenuI18n::Label("Enable RCAS/DA"), &rcas))
                 config->RcasEnabled = rcas;
 
             ShowHelpMarker("Enable OptiScaler's sharpening filter\n"
@@ -5371,7 +5367,7 @@ void MenuCommon::RenderActiveImageSettings(RenderMenuContext& ctx)
 
             auto sharpnessShader = (int32_t) Config::Instance()->SharpnessShader.value_or_default();
 
-            if (ImGui::RadioButton("RCAS", &sharpnessShader, (int32_t) SharpenShader::RCAS))
+            if (ImGui::RadioButton(MenuI18n::Label("RCAS"), &sharpnessShader, (int32_t) SharpenShader::RCAS))
             {
                 Config::Instance()->SharpnessShader = SharpenShader::RCAS;
             }
@@ -5382,7 +5378,7 @@ void MenuCommon::RenderActiveImageSettings(RenderMenuContext& ctx)
 
             ImGui::SameLine(0.0f, 6.0f);
 
-            if (ImGui::RadioButton("Depth Aware (RCAS)", &sharpnessShader, (int32_t) SharpenShader::DepthAware))
+            if (ImGui::RadioButton(MenuI18n::Label("Depth Aware (RCAS)"), &sharpnessShader, (int32_t) SharpenShader::DepthAware))
             {
                 Config::Instance()->SharpnessShader = SharpenShader::DepthAware;
             }
@@ -5395,7 +5391,7 @@ void MenuCommon::RenderActiveImageSettings(RenderMenuContext& ctx)
 
             ImGui::SameLine(0.0f, 6.0f);
 
-            if (ImGui::RadioButton("Depth Aware (DAS)", &sharpnessShader,
+            if (ImGui::RadioButton(MenuI18n::Label("Depth Aware (DAS)"), &sharpnessShader,
                                    (int32_t) SharpenShader::LocalContrastDepthAware))
             {
                 Config::Instance()->SharpnessShader = SharpenShader::LocalContrastDepthAware;
@@ -5411,14 +5407,14 @@ void MenuCommon::RenderActiveImageSettings(RenderMenuContext& ctx)
             ImGui::Spacing();
 
             if (bool overrideMotionSharpness = config->MotionSharpnessEnabled.value_or_default();
-                ImGui::Checkbox("Enable Motion Adaptive Sharpness", &overrideMotionSharpness))
+                ImGui::Checkbox(MenuI18n::Label("Enable Motion Adaptive Sharpness"), &overrideMotionSharpness))
                 config->MotionSharpnessEnabled = overrideMotionSharpness;
             ShowHelpMarker("Enables sharpness adjustments according to the motion");
 
             if (Config::Instance()->SharpnessShader.value_or_default() != SharpenShader::RCAS)
             {
                 if (bool overrideMSDebug = config->MotionSharpnessDebug.value_or_default();
-                    ImGui::Checkbox("DA + MAS Debug", &overrideMSDebug))
+                    ImGui::Checkbox(MenuI18n::Label("DA + MAS Debug"), &overrideMSDebug))
                     config->MotionSharpnessDebug = overrideMSDebug;
 
                 ShowHelpMarker("Enable DA + MAS debug views\n"
@@ -5431,7 +5427,7 @@ void MenuCommon::RenderActiveImageSettings(RenderMenuContext& ctx)
                     ScopedIndent indent {};
                     ImGui::Spacing();
 
-                    if (bool clamp = config->DAClampOutput.value_or(false); ImGui::Checkbox("Clamp Output", &clamp))
+                    if (bool clamp = config->DAClampOutput.value_or(false); ImGui::Checkbox(MenuI18n::Label("Clamp Output"), &clamp))
                     {
                         if (clamp)
                             config->DAClampOutput = true;
@@ -5447,7 +5443,7 @@ void MenuCommon::RenderActiveImageSettings(RenderMenuContext& ctx)
                     if (currentFeature->DepthLinear())
                     {
                         float depthBias = config->DADepthBias.value_or(0.0015f);
-                        if (ImGui::SliderFloat("Depth Bias", &depthBias, 0.005f, 0.03f, "%.4f"))
+                        if (ImGui::SliderFloat(MenuI18n::Label("Depth Bias"), &depthBias, 0.005f, 0.03f, "%.4f"))
                             config->DADepthBias = depthBias;
 
                         ShowHelpMarker("Ignores small depth differences before edge detection.\n\n"
@@ -5457,7 +5453,7 @@ void MenuCommon::RenderActiveImageSettings(RenderMenuContext& ctx)
                                        "detection.");
 
                         float depthScale = config->DADepthScale.value_or(250.0f);
-                        if (ImGui::SliderFloat("Depth Scale", &depthScale, 100.0f, 600.0f, "%.1f"))
+                        if (ImGui::SliderFloat(MenuI18n::Label("Depth Scale"), &depthScale, 100.0f, 600.0f, "%.1f"))
                             config->DADepthScale = depthScale;
 
                         ShowHelpMarker("Controls how strongly sharpening is reduced across depth edges.\n\n"
@@ -5469,7 +5465,7 @@ void MenuCommon::RenderActiveImageSettings(RenderMenuContext& ctx)
                     else
                     {
                         float depthBias = config->DADepthBias.value_or(0.001f);
-                        if (ImGui::SliderFloat("Depth Bias", &depthBias, 0.0001f, 0.003f, "%.4f"))
+                        if (ImGui::SliderFloat(MenuI18n::Label("Depth Bias"), &depthBias, 0.0001f, 0.003f, "%.4f"))
                             config->DADepthBias = depthBias;
 
                         ShowHelpMarker("Ignores small depth differences before edge detection.\n\n"
@@ -5479,7 +5475,7 @@ void MenuCommon::RenderActiveImageSettings(RenderMenuContext& ctx)
                                        "detection.");
 
                         float depthScale = config->DADepthScale.value_or(35.0f);
-                        if (ImGui::SliderFloat("Depth Scale", &depthScale, 25.0f, 400.0f, "%.1f"))
+                        if (ImGui::SliderFloat(MenuI18n::Label("Depth Scale"), &depthScale, 25.0f, 400.0f, "%.1f"))
                             config->DADepthScale = depthScale;
 
                         ShowHelpMarker("Controls how strongly sharpening is reduced across depth edges.\n\n"
@@ -5489,7 +5485,7 @@ void MenuCommon::RenderActiveImageSettings(RenderMenuContext& ctx)
                                        "riskier).");
                     }
 
-                    if (ImGui::Button("Reset Depth Values"))
+                    if (ImGui::Button(MenuI18n::Label("Reset Depth Values")))
                     {
                         config->DADepthBias.reset();
                         config->DADepthScale.reset();
@@ -5499,7 +5495,7 @@ void MenuCommon::RenderActiveImageSettings(RenderMenuContext& ctx)
             else
             {
                 if (bool contrastEnabled = config->ContrastEnabled.value_or_default();
-                    ImGui::Checkbox("Contrast Enabled", &contrastEnabled))
+                    ImGui::Checkbox(MenuI18n::Label("Contrast Enabled"), &contrastEnabled))
                     config->ContrastEnabled = contrastEnabled;
 
                 ShowHelpMarker("Controls sharpness at high contrast areas.");
@@ -5507,7 +5503,7 @@ void MenuCommon::RenderActiveImageSettings(RenderMenuContext& ctx)
                 ImGui::BeginDisabled(!config->ContrastEnabled.value_or_default());
 
                 float contrast = config->Contrast.value_or_default();
-                if (ImGui::SliderFloat("Contrast", &contrast, -2.0f, 2.0f, "%.2f"))
+                if (ImGui::SliderFloat(MenuI18n::Label("Contrast"), &contrast, -2.0f, 2.0f, "%.2f"))
                     config->Contrast = contrast;
 
                 ShowHelpMarker("Positive values decrease sharpness at high contrast areas.\n"
@@ -5527,14 +5523,14 @@ void MenuCommon::RenderActiveImageSettings(RenderMenuContext& ctx)
                 if (Config::Instance()->SharpnessShader.value_or_default() == SharpenShader::RCAS)
                 {
                     if (bool overrideMSDebug = config->MotionSharpnessDebug.value_or_default();
-                        ImGui::Checkbox("MAS Debug", &overrideMSDebug))
+                        ImGui::Checkbox(MenuI18n::Label("MAS Debug"), &overrideMSDebug))
                         config->MotionSharpnessDebug = overrideMSDebug;
                     ShowHelpMarker("Areas that are more red will have more sharpness applied\n"
                                    "Green areas will get reduced sharpness");
                 }
 
                 float motionSharpness = config->MotionSharpness.value_or_default();
-                ImGui::SliderFloat("MotionSharpness", &motionSharpness, -1.0f, 1.0f, "%.3f");
+                ImGui::SliderFloat(MenuI18n::Label("MotionSharpness"), &motionSharpness, -1.0f, 1.0f, "%.3f");
                 config->MotionSharpness = motionSharpness;
 
                 ShowHelpMarker("Maximum amount of sharpness that motion can add or remove.\n\n"
@@ -5543,7 +5539,7 @@ void MenuCommon::RenderActiveImageSettings(RenderMenuContext& ctx)
                                "The final adjustment scales with motion and is capped at this value.");
 
                 float motionThreshod = config->MotionThreshold.value_or_default();
-                ImGui::SliderFloat("MotionThreshod", &motionThreshod, 0.0f, 100.0f, "%.2f");
+                ImGui::SliderFloat(MenuI18n::Label("MotionThreshod"), &motionThreshod, 0.0f, 100.0f, "%.2f");
                 config->MotionThreshold = motionThreshod;
 
                 ShowHelpMarker("Minimum motion required before motion-based sharpening adjustment begins.\n\n"
@@ -5551,7 +5547,7 @@ void MenuCommon::RenderActiveImageSettings(RenderMenuContext& ctx)
                                "Lower values react to subtle motion (more sensitive).");
 
                 float motionScale = config->MotionScaleLimit.value_or_default();
-                ImGui::SliderFloat("MotionRange", &motionScale, 0.01f, 100.0f, "%.2f");
+                ImGui::SliderFloat(MenuI18n::Label("MotionRange"), &motionScale, 0.01f, 100.0f, "%.2f");
                 config->MotionScaleLimit = motionScale;
 
                 ShowHelpMarker("Defines the motion range over which the effect ramps from zero to full strength.\n\n"
@@ -5573,10 +5569,10 @@ void MenuCommon::RenderActiveImageSettings(RenderMenuContext& ctx)
         auto minSliderLimit = config->ExtendedLimits.value_or_default() ? 0.1f : 1.0f;
         auto maxSliderLimit = config->ExtendedLimits.value_or_default() ? 6.0f : 3.0f;
 
-        ImGui::SeparatorText("Upscale Ratio Override");
+        ImGui::SeparatorText(MenuI18n::Text("Upscale Ratio Override"));
 
         if (bool upOverride = config->UpscaleRatioOverrideEnabled.value_or_default();
-            ImGui::Checkbox("Override all", &upOverride))
+            ImGui::Checkbox(MenuI18n::Label("Override all"), &upOverride))
         {
             config->UpscaleRatioOverrideEnabled = upOverride;
 
@@ -5588,7 +5584,7 @@ void MenuCommon::RenderActiveImageSettings(RenderMenuContext& ctx)
                        "1080 / 1.5 = 720");
 
         if (bool qOverride = config->QualityRatioOverrideEnabled.value_or_default();
-            ImGui::Checkbox("Override per quality preset", &qOverride))
+            ImGui::Checkbox(MenuI18n::Label("Override per quality preset"), &qOverride))
         {
             config->QualityRatioOverrideEnabled = qOverride;
 
@@ -5604,34 +5600,34 @@ void MenuCommon::RenderActiveImageSettings(RenderMenuContext& ctx)
         if (config->UpscaleRatioOverrideEnabled.value_or_default())
         {
             float urOverride = config->UpscaleRatioOverrideValue.value_or_default();
-            ImGui::SliderFloat("All Ratios", &urOverride, minSliderLimit, maxSliderLimit, "%.3f");
+            ImGui::SliderFloat(MenuI18n::Label("All Ratios"), &urOverride, minSliderLimit, maxSliderLimit, "%.3f");
             config->UpscaleRatioOverrideValue = urOverride;
         }
 
         if (config->QualityRatioOverrideEnabled.value_or_default())
         {
             float qDlaa = config->QualityRatio_DLAA.value_or_default();
-            if (ImGui::SliderFloat("DLAA", &qDlaa, minSliderLimit, maxSliderLimit, "%.3f"))
+            if (ImGui::SliderFloat(MenuI18n::Label("DLAA"), &qDlaa, minSliderLimit, maxSliderLimit, "%.3f"))
                 config->QualityRatio_DLAA = qDlaa;
 
             float qUq = config->QualityRatio_UltraQuality.value_or_default();
-            if (ImGui::SliderFloat("Ultra Quality", &qUq, minSliderLimit, maxSliderLimit, "%.3f"))
+            if (ImGui::SliderFloat(MenuI18n::Label("Ultra Quality"), &qUq, minSliderLimit, maxSliderLimit, "%.3f"))
                 config->QualityRatio_UltraQuality = qUq;
 
             float qQ = config->QualityRatio_Quality.value_or_default();
-            if (ImGui::SliderFloat("Quality", &qQ, minSliderLimit, maxSliderLimit, "%.3f"))
+            if (ImGui::SliderFloat(MenuI18n::Label("Quality"), &qQ, minSliderLimit, maxSliderLimit, "%.3f"))
                 config->QualityRatio_Quality = qQ;
 
             float qB = config->QualityRatio_Balanced.value_or_default();
-            if (ImGui::SliderFloat("Balanced", &qB, minSliderLimit, maxSliderLimit, "%.3f"))
+            if (ImGui::SliderFloat(MenuI18n::Label("Balanced"), &qB, minSliderLimit, maxSliderLimit, "%.3f"))
                 config->QualityRatio_Balanced = qB;
 
             float qP = config->QualityRatio_Performance.value_or_default();
-            if (ImGui::SliderFloat("Performance", &qP, minSliderLimit, maxSliderLimit, "%.3f"))
+            if (ImGui::SliderFloat(MenuI18n::Label("Performance"), &qP, minSliderLimit, maxSliderLimit, "%.3f"))
                 config->QualityRatio_Performance = qP;
 
             float qUp = config->QualityRatio_UltraPerformance.value_or_default();
-            if (ImGui::SliderFloat("Ultra Performance", &qUp, minSliderLimit, maxSliderLimit, "%.3f"))
+            if (ImGui::SliderFloat(MenuI18n::Label("Ultra Performance"), &qUp, minSliderLimit, maxSliderLimit, "%.3f"))
                 config->QualityRatio_UltraPerformance = qUp;
         }
 
@@ -5644,7 +5640,7 @@ void MenuCommon::RenderActiveImageSettings(RenderMenuContext& ctx)
                 ImGui::BeginDisabled(!currentFeature->LowResMV() &&
                                      currentFeature->RenderWidth() != currentFeature->DisplayWidth());
 
-                ImGui::SeparatorText("Output Scaling");
+                ImGui::SeparatorText(MenuI18n::Text("Output Scaling"));
 
                 float defaultRatio = 1.5f;
 
@@ -5657,7 +5653,7 @@ void MenuCommon::RenderActiveImageSettings(RenderMenuContext& ctx)
 
                 ImGui::BeginDisabled((currentBackend == Upscaler::XeSS || currentBackend == Upscaler::DLSS) &&
                                      currentFeature->RenderWidth() > currentFeature->DisplayWidth());
-                ImGui::Checkbox("Enable", &_ssEnabled);
+                ImGui::Checkbox(MenuI18n::Label("Enable"), &_ssEnabled);
                 ImGui::EndDisabled();
 
                 ShowHelpMarker("Upscales the image internally to a higher output resolution\n"
@@ -5717,7 +5713,7 @@ void MenuCommon::RenderActiveImageSettings(RenderMenuContext& ctx)
                                     _ssDownsampler != config->OutputScalingDownscaler.value_or_default();
 
                 ImGui::BeginDisabled(!applyEnabled);
-                if (ImGui::Button("Apply Change"))
+                if (ImGui::Button(MenuI18n::Label("Apply Change")))
                 {
                     config->OutputScalingEnabled = _ssEnabled;
                     config->OutputScalingMultiplier = _ssRatio;
@@ -5738,12 +5734,12 @@ void MenuCommon::RenderActiveImageSettings(RenderMenuContext& ctx)
                 ImGui::EndDisabled();
 
                 ImGui::BeginDisabled(!_ssEnabled || currentFeature->RenderWidth() > currentFeature->DisplayWidth());
-                ImGui::SliderFloat("Ratio", &_ssRatio, 0.5f, 3.0f, "%.2f");
+                ImGui::SliderFloat(MenuI18n::Label("Ratio"), &_ssRatio, 0.5f, 3.0f, "%.2f");
                 ImGui::EndDisabled();
 
                 if (currentFeature != nullptr && !currentFeature->IsFrozen())
                 {
-                    ImGui::Text("Output Scaling is %s, Target Res: %dx%d (%.2f)\nJitter Count: %d",
+                    MenuI18nUI::Text("Output Scaling is %s, Target Res: %dx%d (%.2f)\nJitter Count: %d",
                                 config->OutputScalingEnabled.value_or_default() ? "ENABLED" : "DISABLED",
                                 (uint32_t) (currentFeature->DisplayWidth() * _ssRatio),
                                 (uint32_t) (currentFeature->DisplayHeight() * _ssRatio),
@@ -5757,7 +5753,7 @@ void MenuCommon::RenderActiveImageSettings(RenderMenuContext& ctx)
         }
 
         // INIT -----------------------------
-        ImGui::SeparatorText("Init Flags");
+        ImGui::SeparatorText(MenuI18n::Text("Init Flags"));
         if (ImGui::BeginTable("init", 2, ImGuiTableFlags_SizingStretchProp))
         {
             ImGui::TableNextColumn();
@@ -5766,7 +5762,7 @@ void MenuCommon::RenderActiveImageSettings(RenderMenuContext& ctx)
             bool autoExposureDisabled = state.api == API::DX11 && currentBackend == Upscaler::XeSS;
             ImGui::BeginDisabled(autoExposureDisabled);
 
-            if (bool autoExposure = currentFeature->AutoExposure(); ImGui::Checkbox("Auto Exposure", &autoExposure))
+            if (bool autoExposure = currentFeature->AutoExposure(); ImGui::Checkbox(MenuI18n::Label("Auto Exposure"), &autoExposure))
             {
                 config->AutoExposure = autoExposure;
                 ReInitUpscaler();
@@ -5788,7 +5784,7 @@ void MenuCommon::RenderActiveImageSettings(RenderMenuContext& ctx)
 
             bool disableReactiveMask = config->DisableReactiveMask.value_or(!canUseReactiveMask);
 
-            if (ImGui::Checkbox("Disable Reactive Mask", &disableReactiveMask))
+            if (ImGui::Checkbox(MenuI18n::Label("Disable Reactive Mask"), &disableReactiveMask))
             {
                 config->DisableReactiveMask = disableReactiveMask;
 
@@ -5819,7 +5815,7 @@ void MenuCommon::RenderActiveImageSettings(RenderMenuContext& ctx)
                 if (ImGui::BeginTable("init2", 2, ImGuiTableFlags_SizingStretchProp))
                 {
                     ImGui::TableNextColumn();
-                    if (bool depth = currentFeature->DepthInverted(); ImGui::Checkbox("Depth Inverted", &depth))
+                    if (bool depth = currentFeature->DepthInverted(); ImGui::Checkbox(MenuI18n::Label("Depth Inverted"), &depth))
                     {
                         config->DepthInverted = depth;
                         ReInitUpscaler();
@@ -5828,7 +5824,7 @@ void MenuCommon::RenderActiveImageSettings(RenderMenuContext& ctx)
                     ShowHelpMarker("You shouldn't need to change it");
 
                     ImGui::TableNextColumn();
-                    if (bool hdr = currentFeature->IsHdr(); ImGui::Checkbox("HDR", &hdr))
+                    if (bool hdr = currentFeature->IsHdr(); ImGui::Checkbox(MenuI18n::Label("HDR"), &hdr))
                     {
                         config->HDR = hdr;
                         ReInitUpscaler();
@@ -5837,7 +5833,7 @@ void MenuCommon::RenderActiveImageSettings(RenderMenuContext& ctx)
                     ShowHelpMarker("Might help with purple hue in some games");
 
                     ImGui::TableNextColumn();
-                    if (bool mv = !currentFeature->LowResMV(); ImGui::Checkbox("Display Res. MV", &mv))
+                    if (bool mv = !currentFeature->LowResMV(); ImGui::Checkbox(MenuI18n::Label("Display Res. MV"), &mv))
                     {
                         config->DisplayResolution = mv;
 
@@ -5857,7 +5853,7 @@ void MenuCommon::RenderActiveImageSettings(RenderMenuContext& ctx)
 
                     ImGui::TableNextColumn();
 
-                    if (bool jitter = currentFeature->JitteredMV(); ImGui::Checkbox("Jitter Cancellation", &jitter))
+                    if (bool jitter = currentFeature->JitteredMV(); ImGui::Checkbox(MenuI18n::Label("Jitter Cancellation"), &jitter))
                     {
                         config->JitterCancellation = jitter;
                         ReInitUpscaler();
@@ -5879,7 +5875,7 @@ void MenuCommon::RenderActiveImageSettings(RenderMenuContext& ctx)
 
                     if (!binaryMask)
                     {
-                        if (ImGui::SliderFloat("React. Mask Bias", &maskBias, 0.0f, 0.9f, "%.2f"))
+                        if (ImGui::SliderFloat(MenuI18n::Label("React. Mask Bias"), &maskBias, 0.0f, 0.9f, "%.2f"))
                             config->DlssReactiveMaskBias = maskBias;
 
                         ShowHelpMarker("Values above 0 activate usage of Reactive mask");
@@ -5887,7 +5883,7 @@ void MenuCommon::RenderActiveImageSettings(RenderMenuContext& ctx)
                     else
                     {
                         bool useRM = maskBias > 0.0f;
-                        if (ImGui::Checkbox("Use Binary Reactive Mask", &useRM))
+                        if (ImGui::Checkbox(MenuI18n::Label("Use Binary Reactive Mask"), &useRM))
                         {
                             if (useRM)
                                 config->DlssReactiveMaskBias = 0.45f;
@@ -5916,38 +5912,38 @@ void MenuCommon::RenderMagnifierSettings(RenderMenuContext& ctx)
         ImGui::Spacing();
 
         bool magnifierEnabled = config->MagnifierEnabled.value_or_default();
-        if (ImGui::Checkbox("Enable Magnifier", &magnifierEnabled))
+        if (ImGui::Checkbox(MenuI18n::Label("Enable Magnifier"), &magnifierEnabled))
             config->MagnifierEnabled = magnifierEnabled;
 
         ImGui::BeginDisabled(!magnifierEnabled);
 
         float magnifierSize = config->MagnifierSize.value_or_default();
-        if (ImGui::SliderFloat("Size", &magnifierSize, 5.0f, 50.0f, "%.1f%% of screen"))
+        if (ImGui::SliderFloat(MenuI18n::Label("Size"), &magnifierSize, 5.0f, 50.0f, "%.1f%% of screen"))
             config->MagnifierSize = magnifierSize;
 
         int zoomFactor = config->MagnifierZoomFactor.value_or_default();
-        if (ImGui::SliderInt("Zoom Factor", &zoomFactor, 2, 20, "%dx"))
+        if (ImGui::SliderInt(MenuI18n::Label("Zoom Factor"), &zoomFactor, 2, 20, "%dx"))
             config->MagnifierZoomFactor = zoomFactor;
 
         float borderSize = config->MagnifierBorderSize.value_or_default();
-        if (ImGui::SliderFloat("Border Size", &borderSize, 0.0f, 2.0f, "%.2f%% of screen"))
+        if (ImGui::SliderFloat(MenuI18n::Label("Border Size"), &borderSize, 0.0f, 2.0f, "%.2f%% of screen"))
             config->MagnifierBorderSize = borderSize;
 
         ImGui::Separator();
-        ImGui::Text("Positioning");
+        MenuI18nUI::Text("Positioning");
 
         bool staticMode = config->MagnifierStaticPosX.has_value() && config->MagnifierStaticPosY.has_value();
         if (staticMode)
         {
             float staticX = config->MagnifierStaticPosX.value();
-            if (ImGui::SliderFloat("Static Pos X", &staticX, 0.0f, 100.0f, "%.1f%%"))
+            if (ImGui::SliderFloat(MenuI18n::Label("Static Pos X"), &staticX, 0.0f, 100.0f, "%.1f%%"))
                 config->MagnifierStaticPosX = staticX;
 
             float staticY = config->MagnifierStaticPosY.value();
-            if (ImGui::SliderFloat("Static Pos Y", &staticY, 0.0f, 100.0f, "%.1f%%"))
+            if (ImGui::SliderFloat(MenuI18n::Label("Static Pos Y"), &staticY, 0.0f, 100.0f, "%.1f%%"))
                 config->MagnifierStaticPosY = staticY;
 
-            if (ImGui::Button("Reset Static Position (Follow Cursor)"))
+            if (ImGui::Button(MenuI18n::Label("Reset Static Position (Follow Cursor)")))
             {
                 config->MagnifierStaticPosX.reset();
                 config->MagnifierStaticPosY.reset();
@@ -5956,20 +5952,20 @@ void MenuCommon::RenderMagnifierSettings(RenderMenuContext& ctx)
         else
         {
             // Button to initialize static position mode
-            if (ImGui::Button("Set Static Position"))
+            if (ImGui::Button(MenuI18n::Label("Set Static Position")))
             {
                 config->MagnifierStaticPosX = 50.0f;
                 config->MagnifierStaticPosY = 50.0f;
             }
             ImGui::SameLine();
-            ImGui::TextDisabled("(Currently following cursor)");
+            MenuI18nUI::TextDisabled("(Currently following cursor)");
 
             float offsetX = config->MagnifierCursorOffsetX.value_or_default();
-            if (ImGui::SliderFloat("Cursor Offset X", &offsetX, -300.0f, 300.0f, "%.0f px"))
+            if (ImGui::SliderFloat(MenuI18n::Label("Cursor Offset X"), &offsetX, -300.0f, 300.0f, "%.0f px"))
                 config->MagnifierCursorOffsetX = offsetX;
 
             float offsetY = config->MagnifierCursorOffsetY.value_or_default();
-            if (ImGui::SliderFloat("Cursor Offset Y", &offsetY, -300.0f, 300.0f, "%.0f px"))
+            if (ImGui::SliderFloat(MenuI18n::Label("Cursor Offset Y"), &offsetY, -300.0f, 300.0f, "%.0f px"))
                 config->MagnifierCursorOffsetY = offsetY;
         }
 
@@ -5992,7 +5988,7 @@ void MenuCommon::RenderQuirksSettings(RenderMenuContext& ctx)
 
             for (const auto& quirk : state.detectedQuirks)
             {
-                ImGui::TextWrapped("%s", quirk.c_str());
+                MenuI18nUI::TextWrapped("%s", quirk.c_str());
             }
         }
     }
@@ -6014,7 +6010,7 @@ void MenuCommon::RenderAdvancedSettings(RenderMenuContext& ctx)
         if (currentFeature != nullptr && !currentFeature->IsFrozen())
         {
             bool extendedLimits = config->ExtendedLimits.value_or_default();
-            if (ImGui::Checkbox("Enable Extended Limits", &extendedLimits))
+            if (ImGui::Checkbox(MenuI18n::Label("Enable Extended Limits"), &extendedLimits))
                 config->ExtendedLimits = extendedLimits;
 
             ShowHelpMarker("Extended sliders limit for quality presets\n\n"
@@ -6023,7 +6019,7 @@ void MenuCommon::RenderAdvancedSettings(RenderMenuContext& ctx)
         }
 
         bool pcShaders = config->UsePrecompiledShaders.value_or_default();
-        if (ImGui::Checkbox("Use Precompiled Shaders", &pcShaders))
+        if (ImGui::Checkbox(MenuI18n::Label("Use Precompiled Shaders"), &pcShaders))
         {
             config->UsePrecompiledShaders = pcShaders;
             state.newBackend = currentBackend;
@@ -6031,18 +6027,18 @@ void MenuCommon::RenderAdvancedSettings(RenderMenuContext& ctx)
         }
 
         // DRS
-        ImGui::SeparatorText("DRS (Dynamic Resolution Scaling)");
+        ImGui::SeparatorText(MenuI18n::Text("DRS (Dynamic Resolution Scaling)"));
         if (ImGui::BeginTable("drs", 2, ImGuiTableFlags_SizingStretchProp))
         {
             ImGui::TableNextColumn();
             if (bool drsMin = config->DrsMinOverrideEnabled.value_or_default();
-                ImGui::Checkbox("Override Minimum", &drsMin))
+                ImGui::Checkbox(MenuI18n::Label("Override Minimum"), &drsMin))
                 config->DrsMinOverrideEnabled = drsMin;
             ShowHelpMarker("Fix for games ignoring official DRS limits");
 
             ImGui::TableNextColumn();
             if (bool drsMax = config->DrsMaxOverrideEnabled.value_or_default();
-                ImGui::Checkbox("Override Maximum", &drsMax))
+                ImGui::Checkbox(MenuI18n::Label("Override Maximum"), &drsMax))
                 config->DrsMaxOverrideEnabled = drsMax;
             ShowHelpMarker("Fix for games ignoring official DRS limits");
 
@@ -6077,11 +6073,11 @@ void MenuCommon::RenderAdvancedSettings(RenderMenuContext& ctx)
                     ImGui::Spacing();
 
                     if (bool crs = config->RestoreComputeSignature.value_or_default();
-                        ImGui::Checkbox("Restore Compute Root Signature", &crs))
+                        ImGui::Checkbox(MenuI18n::Label("Restore Compute Root Signature"), &crs))
                         config->RestoreComputeSignature = crs;
 
                     if (bool grs = config->RestoreGraphicSignature.value_or_default();
-                        ImGui::Checkbox("Restore Graphic Root Signature", &grs))
+                        ImGui::Checkbox(MenuI18n::Label("Restore Graphic Root Signature"), &grs))
                         config->RestoreGraphicSignature = grs;
                 }
             }
@@ -6106,14 +6102,14 @@ void MenuCommon::RenderLoggingSettings(RenderMenuContext& ctx)
         else
             spdlog::default_logger()->set_level(spdlog::level::off);
 
-        if (bool toFile = config->LogToFile.value_or_default(); ImGui::Checkbox("To File", &toFile))
+        if (bool toFile = config->LogToFile.value_or_default(); ImGui::Checkbox(MenuI18n::Label("To File"), &toFile))
         {
             config->LogToFile = toFile;
             PrepareLogger();
         }
 
         ImGui::SameLine(0.0f, 6.0f);
-        if (bool toConsole = config->LogToConsole.value_or_default(); ImGui::Checkbox("To Console", &toConsole))
+        if (bool toConsole = config->LogToConsole.value_or_default(); ImGui::Checkbox(MenuI18n::Label("To Console"), &toConsole))
         {
             config->LogToConsole = toConsole;
             PrepareLogger();
@@ -6122,11 +6118,11 @@ void MenuCommon::RenderLoggingSettings(RenderMenuContext& ctx)
         const char* logLevels[] = { "Trace", "Debug", "Information", "Warning", "Error" };
         const char* selectedLevel = logLevels[config->LogLevel.value_or_default()];
 
-        if (ImGui::BeginCombo("Log Level", selectedLevel))
+        if (ImGui::BeginCombo(MenuI18n::Label("Log Level"), MenuI18n::Text(selectedLevel)))
         {
             for (int n = 0; n < 5; n++)
             {
-                if (ImGui::Selectable(logLevels[n], (config->LogLevel.value_or_default() == n)))
+                if (ImGui::Selectable(MenuI18n::Label(logLevels[n]), (config->LogLevel.value_or_default() == n)))
                 {
                     config->LogLevel = n;
                     spdlog::default_logger()->set_level(
@@ -6168,15 +6164,15 @@ void MenuCommon::RenderThemeSettings(RenderMenuContext& ctx)
         auto AccentStrong = [&](ImVec4 accent, float alpha = 1.0f)
         { return toneMapColor(ImVec4(accent.x, accent.y, accent.z, alpha)); };
 
-        if (ImGui::Checkbox("Light Theme", &lightTheme))
+        if (ImGui::Checkbox(MenuI18n::Label("Light Theme"), &lightTheme))
         {
             config->LightTheme = lightTheme;
             ApplyThemeStyle();
         }
 
-        ImGui::SeparatorText("Accent Colour");
+        ImGui::SeparatorText(MenuI18n::Text("Accent Colour"));
 
-        ImGui::Text("Presets:");
+        MenuI18nUI::Text("Presets:");
         ImGui::SameLine(0.0f, 6.0f);
 
         ImVec4 colorBlue = { 0.00f, 0.40f, 0.77f, 1.0f };
@@ -6195,7 +6191,7 @@ void MenuCommon::RenderThemeSettings(RenderMenuContext& ctx)
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, AccentMed(color));
         ImGui::PushStyleColor(ImGuiCol_ButtonActive, AccentStrong(color));
 
-        if (ImGui::Button("Blue"))
+        if (ImGui::Button(MenuI18n::Label("Blue")))
         {
             ImGui::PopStyleColor(3);
 
@@ -6216,7 +6212,7 @@ void MenuCommon::RenderThemeSettings(RenderMenuContext& ctx)
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, AccentMed(color));
         ImGui::PushStyleColor(ImGuiCol_ButtonActive, AccentStrong(color));
 
-        if (ImGui::Button("Teal"))
+        if (ImGui::Button(MenuI18n::Label("Teal")))
         {
             ImGui::PopStyleColor(3);
 
@@ -6237,7 +6233,7 @@ void MenuCommon::RenderThemeSettings(RenderMenuContext& ctx)
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, AccentMed(color));
         ImGui::PushStyleColor(ImGuiCol_ButtonActive, AccentStrong(color));
 
-        if (ImGui::Button("Gray"))
+        if (ImGui::Button(MenuI18n::Label("Gray")))
         {
             ImGui::PopStyleColor(3);
 
@@ -6258,7 +6254,7 @@ void MenuCommon::RenderThemeSettings(RenderMenuContext& ctx)
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, AccentMed(color));
         ImGui::PushStyleColor(ImGuiCol_ButtonActive, AccentStrong(color));
 
-        if (ImGui::Button("Yellow"))
+        if (ImGui::Button(MenuI18n::Label("Yellow")))
         {
             ImGui::PopStyleColor(3);
 
@@ -6279,7 +6275,7 @@ void MenuCommon::RenderThemeSettings(RenderMenuContext& ctx)
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, AccentMed(color));
         ImGui::PushStyleColor(ImGuiCol_ButtonActive, AccentStrong(color));
 
-        if (ImGui::Button("Green"))
+        if (ImGui::Button(MenuI18n::Label("Green")))
         {
             ImGui::PopStyleColor(3);
 
@@ -6300,7 +6296,7 @@ void MenuCommon::RenderThemeSettings(RenderMenuContext& ctx)
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, AccentMed(color));
         ImGui::PushStyleColor(ImGuiCol_ButtonActive, AccentStrong(color));
 
-        if (ImGui::Button("Red"))
+        if (ImGui::Button(MenuI18n::Label("Red")))
         {
             ImGui::PopStyleColor(3);
 
@@ -6321,7 +6317,7 @@ void MenuCommon::RenderThemeSettings(RenderMenuContext& ctx)
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, AccentMed(color));
         ImGui::PushStyleColor(ImGuiCol_ButtonActive, AccentStrong(color));
 
-        if (ImGui::Button("Orange"))
+        if (ImGui::Button(MenuI18n::Label("Orange")))
         {
             ImGui::PopStyleColor(3);
 
@@ -6342,7 +6338,7 @@ void MenuCommon::RenderThemeSettings(RenderMenuContext& ctx)
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, AccentMed(color));
         ImGui::PushStyleColor(ImGuiCol_ButtonActive, AccentStrong(color));
 
-        if (ImGui::Button("Purple"))
+        if (ImGui::Button(MenuI18n::Label("Purple")))
         {
             ImGui::PopStyleColor(3);
 
@@ -6360,7 +6356,7 @@ void MenuCommon::RenderThemeSettings(RenderMenuContext& ctx)
                                  config->MenuAccentColorG.value_or_default(),
                                  config->MenuAccentColorB.value_or_default() };
 
-        if (ImGui::ColorEdit3("Custom Accent Color", accentColor))
+        if (ImGui::ColorEdit3(MenuI18n::Label("Custom Accent Color"), accentColor))
         {
             config->MenuAccentColorR = accentColor[0];
             config->MenuAccentColorG = accentColor[1];
@@ -6370,7 +6366,7 @@ void MenuCommon::RenderThemeSettings(RenderMenuContext& ctx)
 
         ImGui::Spacing();
 
-        if (ImGui::Button("Reset Accent Color"))
+        if (ImGui::Button(MenuI18n::Label("Reset Accent Color")))
         {
             config->MenuAccentColorR.reset();
             config->MenuAccentColorG.reset();
@@ -6380,9 +6376,9 @@ void MenuCommon::RenderThemeSettings(RenderMenuContext& ctx)
 
         ImGui::Spacing();
 
-        ImGui::SeparatorText("Background Colour");
+        ImGui::SeparatorText(MenuI18n::Text("Background Colour"));
 
-        ImGui::Text("Presets:");
+        MenuI18nUI::Text("Presets:");
         ImGui::SameLine(0.0f, 6.0f);
 
         color = colorBlue;
@@ -6390,7 +6386,7 @@ void MenuCommon::RenderThemeSettings(RenderMenuContext& ctx)
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, AccentMed(color));
         ImGui::PushStyleColor(ImGuiCol_ButtonActive, AccentStrong(color));
 
-        if (ImGui::Button("Blue##2"))
+        if (ImGui::Button(MenuI18n::Label("Blue##2")))
         {
             ImGui::PopStyleColor(3);
 
@@ -6411,7 +6407,7 @@ void MenuCommon::RenderThemeSettings(RenderMenuContext& ctx)
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, AccentMed(color));
         ImGui::PushStyleColor(ImGuiCol_ButtonActive, AccentStrong(color));
 
-        if (ImGui::Button("Teal##2"))
+        if (ImGui::Button(MenuI18n::Label("Teal##2")))
         {
             ImGui::PopStyleColor(3);
 
@@ -6432,7 +6428,7 @@ void MenuCommon::RenderThemeSettings(RenderMenuContext& ctx)
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, AccentMed(color));
         ImGui::PushStyleColor(ImGuiCol_ButtonActive, AccentStrong(color));
 
-        if (ImGui::Button("Gray##2"))
+        if (ImGui::Button(MenuI18n::Label("Gray##2")))
         {
             ImGui::PopStyleColor(3);
 
@@ -6453,7 +6449,7 @@ void MenuCommon::RenderThemeSettings(RenderMenuContext& ctx)
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, AccentMed(color));
         ImGui::PushStyleColor(ImGuiCol_ButtonActive, AccentStrong(color));
 
-        if (ImGui::Button("Yellow##2"))
+        if (ImGui::Button(MenuI18n::Label("Yellow##2")))
         {
             ImGui::PopStyleColor(3);
 
@@ -6474,7 +6470,7 @@ void MenuCommon::RenderThemeSettings(RenderMenuContext& ctx)
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, AccentMed(color));
         ImGui::PushStyleColor(ImGuiCol_ButtonActive, AccentStrong(color));
 
-        if (ImGui::Button("Green##2"))
+        if (ImGui::Button(MenuI18n::Label("Green##2")))
         {
             ImGui::PopStyleColor(3);
 
@@ -6495,7 +6491,7 @@ void MenuCommon::RenderThemeSettings(RenderMenuContext& ctx)
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, AccentMed(color));
         ImGui::PushStyleColor(ImGuiCol_ButtonActive, AccentStrong(color));
 
-        if (ImGui::Button("Red##2"))
+        if (ImGui::Button(MenuI18n::Label("Red##2")))
         {
             ImGui::PopStyleColor(3);
 
@@ -6516,7 +6512,7 @@ void MenuCommon::RenderThemeSettings(RenderMenuContext& ctx)
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, AccentMed(color));
         ImGui::PushStyleColor(ImGuiCol_ButtonActive, AccentStrong(color));
 
-        if (ImGui::Button("Orange##2"))
+        if (ImGui::Button(MenuI18n::Label("Orange##2")))
         {
             ImGui::PopStyleColor(3);
 
@@ -6537,7 +6533,7 @@ void MenuCommon::RenderThemeSettings(RenderMenuContext& ctx)
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, AccentMed(color));
         ImGui::PushStyleColor(ImGuiCol_ButtonActive, AccentStrong(color));
 
-        if (ImGui::Button("Purple##2"))
+        if (ImGui::Button(MenuI18n::Label("Purple##2")))
         {
             ImGui::PopStyleColor(3);
 
@@ -6554,7 +6550,7 @@ void MenuCommon::RenderThemeSettings(RenderMenuContext& ctx)
         float bgColor[3] = { config->MenuBGColorR.value_or_default(), config->MenuBGColorG.value_or_default(),
                              config->MenuBGColorB.value_or_default() };
 
-        if (ImGui::ColorEdit3("Custom BG Colour", bgColor))
+        if (ImGui::ColorEdit3(MenuI18n::Label("Custom BG Colour"), bgColor))
         {
             config->MenuBGColorR = bgColor[0];
             config->MenuBGColorG = bgColor[1];
@@ -6565,7 +6561,7 @@ void MenuCommon::RenderThemeSettings(RenderMenuContext& ctx)
         ImGui::Spacing();
 
         auto alpha = config->MenuBGColorA.value_or_default();
-        if (ImGui::SliderFloat("Background Alpha", &alpha, 0.0f, 1.0f))
+        if (ImGui::SliderFloat(MenuI18n::Label("Background Alpha"), &alpha, 0.0f, 1.0f))
         {
             config->MenuBGColorA = alpha;
             ApplyThemeStyle();
@@ -6573,7 +6569,7 @@ void MenuCommon::RenderThemeSettings(RenderMenuContext& ctx)
 
         ImGui::Spacing();
 
-        if (ImGui::Button("Reset BG Colour"))
+        if (ImGui::Button(MenuI18n::Label("Reset BG Colour")))
         {
             config->MenuBGColorR.reset();
             config->MenuBGColorG.reset();
@@ -6598,23 +6594,23 @@ void MenuCommon::RenderFpsOverlaySettings(RenderMenuContext& ctx)
         ImGui::Spacing();
 
         bool fpsEnabled = config->ShowFps.value_or_default();
-        if (ImGui::Checkbox("FPS Overlay Enabled", &fpsEnabled))
+        if (ImGui::Checkbox(MenuI18n::Label("FPS Overlay Enabled"), &fpsEnabled))
             config->ShowFps = fpsEnabled;
 
         ImGui::SameLine(0.0f, 6.0f);
 
         bool fpsHorizontal = config->FpsOverlayHorizontal.value_or_default();
-        if (ImGui::Checkbox("Horizontal", &fpsHorizontal))
+        if (ImGui::Checkbox(MenuI18n::Label("Horizontal"), &fpsHorizontal))
             config->FpsOverlayHorizontal = fpsHorizontal;
 
         const char* fpsPosition[] = { "Top Left", "Top Right", "Bottom Left", "Bottom Right" };
         const char* selectedPosition = fpsPosition[config->FpsOverlayPosition.value_or_default()];
 
-        if (ImGui::BeginCombo("Overlay Position", selectedPosition))
+        if (ImGui::BeginCombo(MenuI18n::Label("Overlay Position"), MenuI18n::Text(selectedPosition)))
         {
             for (int n = 0; n < std::size(fpsPosition); n++)
             {
-                if (ImGui::Selectable(fpsPosition[n], (config->FpsOverlayPosition.value_or_default() == n)))
+                if (ImGui::Selectable(MenuI18n::Label(fpsPosition[n]), (config->FpsOverlayPosition.value_or_default() == n)))
                     config->FpsOverlayPosition = (FpsOverlayPos) n;
             }
 
@@ -6625,11 +6621,11 @@ void MenuCommon::RenderFpsOverlaySettings(RenderMenuContext& ctx)
                                   "Full",     "Full + Graph", "Reflex timings" };
         const char* selectedType = fpsType[config->FpsOverlayType.value_or_default()];
 
-        if (ImGui::BeginCombo("Overlay Type", selectedType))
+        if (ImGui::BeginCombo(MenuI18n::Label("Overlay Type"), MenuI18n::Text(selectedType)))
         {
             for (int n = 0; n < std::size(fpsType); n++)
             {
-                if (ImGui::Selectable(fpsType[n], (config->FpsOverlayType.value_or_default() == n)))
+                if (ImGui::Selectable(MenuI18n::Label(fpsType[n]), (config->FpsOverlayType.value_or_default() == n)))
                     config->FpsOverlayType = (FpsOverlay) n;
             }
 
@@ -6637,7 +6633,7 @@ void MenuCommon::RenderFpsOverlaySettings(RenderMenuContext& ctx)
         }
 
         float fpsAlpha = config->FpsOverlayAlpha.value_or_default();
-        if (ImGui::SliderFloat("Background Alpha", &fpsAlpha, 0.0f, 1.0f, "%.2f"))
+        if (ImGui::SliderFloat(MenuI18n::Label("Background Alpha"), &fpsAlpha, 0.0f, 1.0f, "%.2f"))
             config->FpsOverlayAlpha = fpsAlpha;
 
         const char* options[] = { "Same as menu", "0.5", "0.6", "0.7", "0.8", "0.9", "1.0", "1.1", "1.2",
@@ -6646,7 +6642,7 @@ void MenuCommon::RenderFpsOverlaySettings(RenderMenuContext& ctx)
         float values[] = { 0.0f, 0.5f, 0.6f, 0.7f, 0.8f, 0.9f, 1.0f, 1.1f, 1.2f,
                            1.3f, 1.4f, 1.5f, 1.6f, 1.7f, 1.8f, 1.9f, 2.0f };
 
-        if (ImGui::SliderInt("Scale", &currentIndex, 0, IM_ARRAYSIZE(options) - 1, options[currentIndex],
+        if (ImGui::SliderInt(MenuI18n::Label("Scale"), &currentIndex, 0, IM_ARRAYSIZE(options) - 1, options[currentIndex],
                              ImGuiSliderFlags_ClampOnInput))
         {
             if (currentIndex == 0)
@@ -6656,7 +6652,7 @@ void MenuCommon::RenderFpsOverlaySettings(RenderMenuContext& ctx)
         }
 
         bool useTheme = config->OverlaysUseTheme.value_or_default();
-        if (ImGui::Checkbox("Use Theme Colors", &useTheme))
+        if (ImGui::Checkbox(MenuI18n::Label("Use Theme Colors"), &useTheme))
             config->OverlaysUseTheme = useTheme;
     }
 }
@@ -6680,10 +6676,10 @@ void MenuCommon::RenderUpscalerInputsSettings(RenderMenuContext& ctx)
             bool fsr2Inputs = config->UseFsr2Inputs.value_or_default();
             bool fsr2Pattern = config->Fsr2Pattern.value_or_default();
 
-            if (ImGui::Checkbox("Use Fsr2 Inputs", &fsr2Inputs))
+            if (ImGui::Checkbox(MenuI18n::Label("Use Fsr2 Inputs"), &fsr2Inputs))
                 config->UseFsr2Inputs = fsr2Inputs;
 
-            if (ImGui::Checkbox("Use Fsr2 Pattern Matching", &fsr2Pattern))
+            if (ImGui::Checkbox(MenuI18n::Label("Use Fsr2 Pattern Matching"), &fsr2Pattern))
                 config->Fsr2Pattern = fsr2Pattern;
             ShowTooltip("This setting will become active on next boot!");
         }
@@ -6693,10 +6689,10 @@ void MenuCommon::RenderUpscalerInputsSettings(RenderMenuContext& ctx)
             bool fsr3Inputs = config->UseFsr3Inputs.value_or_default();
             bool fsr3Pattern = config->Fsr3Pattern.value_or_default();
 
-            if (ImGui::Checkbox("Use Fsr3 Inputs", &fsr3Inputs))
+            if (ImGui::Checkbox(MenuI18n::Label("Use Fsr3 Inputs"), &fsr3Inputs))
                 config->UseFsr3Inputs = fsr3Inputs;
 
-            if (ImGui::Checkbox("Use Fsr3 Pattern Matching", &fsr3Pattern))
+            if (ImGui::Checkbox(MenuI18n::Label("Use Fsr3 Pattern Matching"), &fsr3Pattern))
                 config->Fsr3Pattern = fsr3Pattern;
             ShowTooltip("This setting will become active on next boot!");
         }
@@ -6705,7 +6701,7 @@ void MenuCommon::RenderUpscalerInputsSettings(RenderMenuContext& ctx)
         {
             bool ffxInputs = config->UseFfxInputs.value_or_default();
 
-            if (ImGui::Checkbox("Use Ffx Inputs", &ffxInputs))
+            if (ImGui::Checkbox(MenuI18n::Label("Use Ffx Inputs"), &ffxInputs))
                 config->UseFfxInputs = ffxInputs;
         }
     }
@@ -6732,7 +6728,7 @@ void MenuCommon::RenderApiAndTextureSettings(RenderMenuContext& ctx)
             auto forceVsyncOff = config->ForceVsync.has_value() && !config->ForceVsync.value();
             bool vsyncChanged = false;
 
-            if (ImGui::Checkbox("V-Sync On", &forceVsyncOn))
+            if (ImGui::Checkbox(MenuI18n::Label("V-Sync On"), &forceVsyncOn))
             {
                 if (forceVsyncOn)
                 {
@@ -6747,7 +6743,7 @@ void MenuCommon::RenderApiAndTextureSettings(RenderMenuContext& ctx)
             }
             ImGui::SameLine(0.0f, 16.0f);
 
-            if (ImGui::Checkbox("V-Sync Off", &forceVsyncOff))
+            if (ImGui::Checkbox(MenuI18n::Label("V-Sync Off"), &forceVsyncOff))
             {
                 if (forceVsyncOff)
                 {
@@ -6767,27 +6763,27 @@ void MenuCommon::RenderApiAndTextureSettings(RenderMenuContext& ctx)
             ImGui::PushItemWidth(50.0f * menuResScale);
 
             auto vsyncBuf = StrFmt("%d", config->VsyncInterval.value_or_default());
-            if (ImGui::BeginCombo("Sync Int.", vsyncBuf.c_str()))
+            if (ImGui::BeginCombo(MenuI18n::Label("Sync Int."), MenuI18n::Text(vsyncBuf.c_str())))
             {
-                if (ImGui::Selectable("0", config->VsyncInterval.value_or_default() == 0))
+                if (ImGui::Selectable(MenuI18n::Label("0"), config->VsyncInterval.value_or_default() == 0))
                 {
                     config->VsyncInterval = 0;
                     vsyncChanged = true;
                 }
 
-                if (ImGui::Selectable("1", config->VsyncInterval.value_or_default() == 1))
+                if (ImGui::Selectable(MenuI18n::Label("1"), config->VsyncInterval.value_or_default() == 1))
                 {
                     config->VsyncInterval = 1;
                     vsyncChanged = true;
                 }
 
-                if (ImGui::Selectable("2", config->VsyncInterval.value_or_default() == 2))
+                if (ImGui::Selectable(MenuI18n::Label("2"), config->VsyncInterval.value_or_default() == 2))
                 {
                     config->VsyncInterval = 2;
                     vsyncChanged = true;
                 }
 
-                if (ImGui::Selectable("3", config->VsyncInterval.value_or_default() == 3))
+                if (ImGui::Selectable(MenuI18n::Label("3"), config->VsyncInterval.value_or_default() == 3))
                 {
                     config->VsyncInterval = 3;
                     vsyncChanged = true;
@@ -6808,7 +6804,7 @@ void MenuCommon::RenderApiAndTextureSettings(RenderMenuContext& ctx)
             ImGui::EndDisabled();
             ImGui::SameLine(0.0f, 16.0f);
 
-            if (ImGui::Button("Reset##10"))
+            if (ImGui::Button(MenuI18n::Label("Reset##10")))
             {
                 config->ForceVsync.reset();
                 vsyncChanged = true;
@@ -6836,7 +6832,7 @@ void MenuCommon::RenderApiAndTextureSettings(RenderMenuContext& ctx)
             if (config->MipmapBiasOverride.has_value() && _mipBias == 0.0f)
                 _mipBias = config->MipmapBiasOverride.value();
 
-            ImGui::SliderFloat("Mipmap Bias##2", &_mipBias, -15.0f, 15.0f, "%.6f");
+            ImGui::SliderFloat(MenuI18n::Label("Mipmap Bias##2"), &_mipBias, -15.0f, 15.0f, "%.6f");
             ShowHelpMarker("Can help with blurry textures in broken games\n"
                            "Negative values will make textures sharper\n"
                            "Positive values will make textures more blurry\n\n"
@@ -6848,7 +6844,7 @@ void MenuCommon::RenderApiAndTextureSettings(RenderMenuContext& ctx)
                                      config->MipmapBiasScaleOverride.value());
                 {
                     bool mbFixed = config->MipmapBiasFixedOverride.value_or_default();
-                    if (ImGui::Checkbox("MB Fixed Override", &mbFixed))
+                    if (ImGui::Checkbox(MenuI18n::Label("MB Fixed Override"), &mbFixed))
                     {
                         config->MipmapBiasScaleOverride.reset();
                         config->MipmapBiasFixedOverride = mbFixed;
@@ -6864,7 +6860,7 @@ void MenuCommon::RenderApiAndTextureSettings(RenderMenuContext& ctx)
                                      config->MipmapBiasFixedOverride.value());
                 {
                     bool mbScale = config->MipmapBiasScaleOverride.value_or_default();
-                    if (ImGui::Checkbox("MB Scale Override", &mbScale))
+                    if (ImGui::Checkbox(MenuI18n::Label("MB Scale Override"), &mbScale))
                     {
                         config->MipmapBiasFixedOverride.reset();
                         config->MipmapBiasScaleOverride = mbScale;
@@ -6877,7 +6873,7 @@ void MenuCommon::RenderApiAndTextureSettings(RenderMenuContext& ctx)
                 ImGui::EndDisabled();
 
                 bool mbAll = config->MipmapBiasOverrideAll.value_or_default();
-                if (ImGui::Checkbox("MB Override All Textures", &mbAll))
+                if (ImGui::Checkbox(MenuI18n::Label("MB Override All Textures"), &mbAll))
                     config->MipmapBiasOverrideAll = mbAll;
 
                 ShowHelpMarker("Override all textures mipmap values\n"
@@ -6889,7 +6885,7 @@ void MenuCommon::RenderApiAndTextureSettings(RenderMenuContext& ctx)
             ImGui::BeginDisabled(config->MipmapBiasOverride.has_value() &&
                                  config->MipmapBiasOverride.value() == _mipBias);
             {
-                if (ImGui::Button("Set"))
+                if (ImGui::Button(MenuI18n::Label("Set")))
                 {
                     config->MipmapBiasOverride = _mipBias;
                     state.lastMipBias = 100.0f;
@@ -6902,7 +6898,7 @@ void MenuCommon::RenderApiAndTextureSettings(RenderMenuContext& ctx)
 
             ImGui::BeginDisabled(!config->MipmapBiasOverride.has_value());
             {
-                if (ImGui::Button("Reset"))
+                if (ImGui::Button(MenuI18n::Label("Reset")))
                 {
                     config->MipmapBiasOverride.reset();
                     _mipBias = 0.0f;
@@ -6916,7 +6912,7 @@ void MenuCommon::RenderApiAndTextureSettings(RenderMenuContext& ctx)
             {
                 ImGui::SameLine(0.0f, 6.0f);
 
-                if (ImGui::Button("Calculate Mipmap Bias"))
+                if (ImGui::Button(MenuI18n::Label("Calculate Mipmap Bias")))
                     _showMipmapCalcWindow = true;
             }
 
@@ -6924,26 +6920,26 @@ void MenuCommon::RenderApiAndTextureSettings(RenderMenuContext& ctx)
             {
                 if (config->MipmapBiasFixedOverride.value_or_default())
                 {
-                    ImGui::Text("Current : %.3f / %.3f, Target: %.3f", state.lastMipBias, state.lastMipBiasMax,
+                    MenuI18nUI::Text("Current : %.3f / %.3f, Target: %.3f", state.lastMipBias, state.lastMipBiasMax,
                                 config->MipmapBiasOverride.value());
                 }
                 else if (config->MipmapBiasScaleOverride.value_or_default())
                 {
-                    ImGui::Text("Current : %.3f / %.3f, Target: Base * %.3f", state.lastMipBias, state.lastMipBiasMax,
+                    MenuI18nUI::Text("Current : %.3f / %.3f, Target: Base * %.3f", state.lastMipBias, state.lastMipBiasMax,
                                 config->MipmapBiasOverride.value());
                 }
                 else
                 {
-                    ImGui::Text("Current : %.3f / %.3f, Target: Base + %.3f", state.lastMipBias, state.lastMipBiasMax,
+                    MenuI18nUI::Text("Current : %.3f / %.3f, Target: Base + %.3f", state.lastMipBias, state.lastMipBiasMax,
                                 config->MipmapBiasOverride.value());
                 }
             }
             else
             {
-                ImGui::Text("Current : %.3f / %.3f", state.lastMipBias, state.lastMipBiasMax);
+                MenuI18nUI::Text("Current : %.3f / %.3f", state.lastMipBias, state.lastMipBiasMax);
             }
 
-            ImGui::Text("Will be applied after RESOLUTION/PRESET change !!!");
+            MenuI18nUI::Text("Will be applied after RESOLUTION/PRESET change !!!");
         }
 
         ImGui::Spacing();
@@ -6958,24 +6954,24 @@ void MenuCommon::RenderApiAndTextureSettings(RenderMenuContext& ctx)
 
             auto selectedAF =
                 config->AnisotropyOverride.has_value() ? std::to_string(config->AnisotropyOverride.value()) : "Auto";
-            if (ImGui::BeginCombo("Force Anisotropic Filtering", selectedAF.c_str()))
+            if (ImGui::BeginCombo(MenuI18n::Label("Force Anisotropic Filtering"), MenuI18n::Text(selectedAF.c_str())))
             {
-                if (ImGui::Selectable("Auto", !config->AnisotropyOverride.has_value()))
+                if (ImGui::Selectable(MenuI18n::Label("Auto"), !config->AnisotropyOverride.has_value()))
                     config->AnisotropyOverride.reset();
 
-                if (ImGui::Selectable("1", config->AnisotropyOverride.value_or(0) == 1))
+                if (ImGui::Selectable(MenuI18n::Label("1"), config->AnisotropyOverride.value_or(0) == 1))
                     config->AnisotropyOverride = 1;
 
-                if (ImGui::Selectable("2", config->AnisotropyOverride.value_or(0) == 2))
+                if (ImGui::Selectable(MenuI18n::Label("2"), config->AnisotropyOverride.value_or(0) == 2))
                     config->AnisotropyOverride = 2;
 
-                if (ImGui::Selectable("4", config->AnisotropyOverride.value_or(0) == 4))
+                if (ImGui::Selectable(MenuI18n::Label("4"), config->AnisotropyOverride.value_or(0) == 4))
                     config->AnisotropyOverride = 4;
 
-                if (ImGui::Selectable("8", config->AnisotropyOverride.value_or(0) == 8))
+                if (ImGui::Selectable(MenuI18n::Label("8"), config->AnisotropyOverride.value_or(0) == 8))
                     config->AnisotropyOverride = 8;
 
-                if (ImGui::Selectable("16", config->AnisotropyOverride.value_or(0) == 16))
+                if (ImGui::Selectable(MenuI18n::Label("16"), config->AnisotropyOverride.value_or(0) == 16))
                     config->AnisotropyOverride = 16;
 
                 ImGui::EndCombo();
@@ -6984,7 +6980,7 @@ void MenuCommon::RenderApiAndTextureSettings(RenderMenuContext& ctx)
             ImGui::PopItemWidth();
 
             bool afComp = config->AnisotropyModifyComp.value_or_default();
-            if (ImGui::Checkbox("Modify Compare", &afComp))
+            if (ImGui::Checkbox(MenuI18n::Label("Modify Compare"), &afComp))
                 config->AnisotropyModifyComp = afComp;
 
             ShowHelpMarker("Update comparison filters");
@@ -6992,18 +6988,18 @@ void MenuCommon::RenderApiAndTextureSettings(RenderMenuContext& ctx)
             ImGui::SameLine(0.0f, 6.0f);
 
             bool afMinMax = config->AnisotropyModifyMinMax.value_or_default();
-            if (ImGui::Checkbox("Modify Min/Max", &afMinMax))
+            if (ImGui::Checkbox(MenuI18n::Label("Modify Min/Max"), &afMinMax))
                 config->AnisotropyModifyMinMax = afMinMax;
 
             ShowHelpMarker("Update min/max filters");
 
             bool afSkipPoint = config->AnisotropySkipPointFilter.value_or_default();
-            if (ImGui::Checkbox("Skip Point Filters", &afSkipPoint))
+            if (ImGui::Checkbox(MenuI18n::Label("Skip Point Filters"), &afSkipPoint))
                 config->AnisotropySkipPointFilter = afSkipPoint;
 
             ShowHelpMarker("Skip updating of point filters");
 
-            ImGui::Text("Will might be applied after RESOLUTION/PRESET change !!!");
+            MenuI18nUI::Text("Will might be applied after RESOLUTION/PRESET change !!!");
         }
     }
 }
@@ -7018,8 +7014,8 @@ void MenuCommon::RenderKeybindSettings(RenderMenuContext& ctx)
         ScopedIndent indent {};
         ImGui::Spacing();
 
-        ImGui::Text("Key combinations are currently NOT supported!");
-        ImGui::Text("Escape to cancel, Backspace to unbind");
+        MenuI18nUI::Text("Key combinations are currently NOT supported!");
+        MenuI18nUI::Text("Escape to cancel, Backspace to unbind");
         ImGui::Spacing();
 
         static auto menu = Keybind("Menu", 10);
@@ -7087,24 +7083,24 @@ void MenuCommon::RenderMainMenuGraphs(RenderMenuContext& ctx)
     if (ImGui::BeginTable("plots", 2, ImGuiTableFlags_SizingStretchSame))
     {
         ImGui::TableNextColumn();
-        ImGui::Text("FrameTime");
+        MenuI18nUI::Text("FrameTime");
         auto ft = StrFmt("%7.2f ms / %6.1f fps", frameTime, frameRate);
         ImGui::PlotLines(
-            ft.c_str(), [](void* rb, int idx) -> float
+            MenuI18n::Label(ft.c_str()), [](void* rb, int idx) -> float
             { return static_cast<RingBuffer<float, plotWidth>*>(rb)->At(idx); }, &gFrameTimes, plotWidth);
 
         if (currentFeature != nullptr && !currentFeature->IsFrozen())
         {
             ImGui::TableNextColumn();
-            ImGui::Text("Upscaler");
+            MenuI18nUI::Text("Upscaler");
 
             ImGui::SameLine();
-            ImGui::TextDisabled("(?)");
+            MenuI18nUI::TextDisabled("(?)");
             if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled) && !state.detailedGpuTimes.empty())
             {
                 ImGui::BeginTooltip();
 
-                ImGui::TextDisabled("Per shader breakdown:");
+                MenuI18nUI::TextDisabled("Per shader breakdown:");
                 if (ImGui::BeginTable("ShaderTimes", 2, ImGuiTableFlags_SizingStretchProp))
                 {
                     bool hasExtra = false;
@@ -7120,10 +7116,10 @@ void MenuCommon::RenderMainMenuGraphs(RenderMenuContext& ctx)
                         auto formattedTime = StrFmt("%7.2f ms", time);
 
                         ImGui::TableNextColumn();
-                        ImGui::Text(name.c_str());
+                        MenuI18nUI::Text(name.c_str());
 
                         ImGui::TableNextColumn();
-                        ImGui::Text(formattedTime.c_str());
+                        MenuI18nUI::Text(formattedTime.c_str());
                     }
 
                     std::optional<double> nrTime {};
@@ -7133,9 +7129,9 @@ void MenuCommon::RenderMainMenuGraphs(RenderMenuContext& ctx)
                         ImGui::TableNextRow();
                         ImGui::TableNextRow();
                         ImGui::TableNextColumn();
-                        ImGui::TextDisabled("Extra shaders:");
+                        MenuI18nUI::TextDisabled("Extra shaders:");
                         ImGui::TableNextColumn();
-                        ImGui::TextDisabled("");
+                        MenuI18nUI::TextDisabled("");
                         for (auto& [name, time, includedInUpscalerTime] : state.detailedGpuTimes)
                         {
                             if (includedInUpscalerTime)
@@ -7144,18 +7140,18 @@ void MenuCommon::RenderMainMenuGraphs(RenderMenuContext& ctx)
                             auto formattedTime = StrFmt("%7.2f ms", time);
 
                             ImGui::TableNextColumn();
-                            ImGui::Text(name.c_str());
+                            MenuI18nUI::Text(name.c_str());
 
                             ImGui::TableNextColumn();
-                            ImGui::Text(formattedTime.c_str());
+                            MenuI18nUI::Text(formattedTime.c_str());
                         }
 
                         if (nrTime.has_value())
                         {
                             ImGui::TableNextColumn();
-                            ImGui::Text("Neural Rendering");
+                            MenuI18nUI::Text("Neural Rendering");
                             ImGui::TableNextColumn();
-                            ImGui::Text(StrFmt("%.2f ms", nrTime.value()).c_str());
+                            MenuI18nUI::Text(StrFmt("%.2f ms", nrTime.value()).c_str());
                         }
                     }
 
@@ -7167,7 +7163,7 @@ void MenuCommon::RenderMainMenuGraphs(RenderMenuContext& ctx)
 
             auto ups = StrFmt("%7.2f ms", state.upscaleTimes.back());
             ImGui::PlotLines(
-                ups.c_str(), [](void* rb, int idx) -> float
+                MenuI18n::Label(ups.c_str()), [](void* rb, int idx) -> float
                 { return static_cast<RingBuffer<float, plotWidth>*>(rb)->At(idx); }, &gUpscalerTimes, plotWidth);
         }
 
@@ -7190,7 +7186,7 @@ void MenuCommon::RenderMainMenuBottomBar(RenderMenuContext& ctx)
 
     if (currentFeature != nullptr && !currentFeature->IsFrozen())
     {
-        ImGui::Text("%dx%d -> %dx%d (%.1f) [%dx%d (%.1f)]", currentFeature->RenderWidth(),
+        MenuI18nUI::Text("%dx%d -> %dx%d (%.1f) [%dx%d (%.1f)]", currentFeature->RenderWidth(),
                     currentFeature->RenderHeight(), currentFeature->TargetWidth(), currentFeature->TargetHeight(),
                     (float) currentFeature->TargetWidth() / (float) currentFeature->RenderWidth(),
                     currentFeature->DisplayWidth(), currentFeature->DisplayHeight(),
@@ -7198,7 +7194,7 @@ void MenuCommon::RenderMainMenuBottomBar(RenderMenuContext& ctx)
 
         ImGui::SameLine(0.0f, 4.0f);
 
-        ImGui::Text("%d", currentFeature->FrameCount());
+        MenuI18nUI::Text("%d", currentFeature->FrameCount());
 
         ImGui::SameLine(0.0f, 10.0f);
     }
@@ -7213,11 +7209,11 @@ void MenuCommon::RenderMainMenuBottomBar(RenderMenuContext& ctx)
 
     const char* selectedScaleName = uiScales[_selectedScale];
 
-    if (ImGui::BeginCombo("Menu Scale", selectedScaleName))
+    if (ImGui::BeginCombo(MenuI18n::Label("Menu Scale"), MenuI18n::Text(selectedScaleName)))
     {
         for (int n = 0; n < std::size(uiScales); n++)
         {
-            if (ImGui::Selectable(uiScales[n], (_selectedScale == n)))
+            if (ImGui::Selectable(MenuI18n::Label(uiScales[n]), (_selectedScale == n)))
             {
                 _selectedScale = n;
 
@@ -7235,12 +7231,12 @@ void MenuCommon::RenderMainMenuBottomBar(RenderMenuContext& ctx)
 
     ImGui::SameLine(0.0f, 15.0f);
 
-    if (ImGui::Button("Save Settings"))
+    if (ImGui::Button(MenuI18n::Label("Save Settings")))
         config->SaveIni();
 
     ImGui::SameLine(0.0f, 6.0f);
 
-    if (ImGui::Button("Close"))
+    if (ImGui::Button(MenuI18n::Label("Close")))
     {
         _isVisible = false;
         hasGamepad = (io.BackendFlags | ImGuiBackendFlags_HasGamepad) > 0;
@@ -7259,7 +7255,7 @@ void MenuCommon::RenderMainMenuBottomBar(RenderMenuContext& ctx)
 
     ImGui::SameLine();
 
-    auto textSize = ImGui::CalcTextSize("Open Wiki (?)");
+    auto textSize = ImGui::CalcTextSize(MenuI18n::Text("Open Wiki (?)"));
     auto& style = ImGui::GetStyle();
     textSize.x += style.FramePadding.x * 2.0f;
     textSize.x += style.ItemSpacing.x;
@@ -7268,7 +7264,7 @@ void MenuCommon::RenderMainMenuBottomBar(RenderMenuContext& ctx)
     ImGui::SetCursorPosX(ImGui::GetCursorPosX() + avail - textSize.x);
 
     // Make button text underline
-    if (ImGui::Button("Open Wiki"))
+    if (ImGui::Button(MenuI18n::Label("Open Wiki")))
     {
         auto pIO = &ImGui::GetPlatformIO();
         auto ctx = ImGui::GetCurrentContext();
@@ -7284,7 +7280,7 @@ void MenuCommon::RenderMainMenuBottomBar(RenderMenuContext& ctx)
     if (state.nvngxIniDetected)
     {
         ImGui::Spacing();
-        ImGui::TextColored(toneMapColor(ImVec4(1.f, 0.f, 0.f, 1.f)),
+        MenuI18nUI::TextColored(toneMapColor(ImVec4(1.f, 0.f, 0.f, 1.f)),
                            "nvngx.ini detected, please move over to using OptiScaler.ini and delete the old config");
         ImGui::Spacing();
     }
@@ -7347,12 +7343,12 @@ void MenuCommon::RenderMipmapBiasWindow(RenderMenuContext& ctx, ImGuiWindowFlags
             _mipBiasCalculated = log2((float) _renderWidth / (float) _displayWidth);
         }
 
-        if (ImGui::Begin("Mipmap Bias", nullptr, flags))
+        if (ImGui::Begin(MenuI18n::Label("Mipmap Bias"), nullptr, flags))
         {
             if (!ImGui::IsWindowFocused(ImGuiFocusedFlags_AnyWindow))
                 ImGui::SetWindowFocus();
 
-            if (ImGui::InputScalar("Display Width", ImGuiDataType_U32, &_displayWidth, NULL, NULL, "%u"))
+            if (ImGui::InputScalar(MenuI18n::Label("Display Width"), ImGuiDataType_U32, &_displayWidth, NULL, NULL, "%u"))
             {
                 if (_displayWidth <= 0)
                 {
@@ -7379,11 +7375,11 @@ void MenuCommon::RenderMipmapBiasWindow(RenderMenuContext& ctx, ImGuiWindowFlags
 
             ImGui::BeginDisabled(config->UpscaleRatioOverrideEnabled.value_or_default());
 
-            if (ImGui::BeginCombo("Upscaler Quality", selectedQ))
+            if (ImGui::BeginCombo(MenuI18n::Label("Upscaler Quality"), MenuI18n::Text(selectedQ)))
             {
                 for (int n = 0; n < 6; n++)
                 {
-                    if (ImGui::Selectable(q[n], (_mipmapUpscalerQuality == n)))
+                    if (ImGui::Selectable(MenuI18n::Label(q[n]), (_mipmapUpscalerQuality == n)))
                     {
                         _mipmapUpscalerQuality = n;
 
@@ -7432,16 +7428,16 @@ void MenuCommon::RenderMipmapBiasWindow(RenderMenuContext& ctx, ImGuiWindowFlags
 
             auto minLimit = config->ExtendedLimits.value_or_default() ? 0.1f : 1.0f;
             auto maxLimit = config->ExtendedLimits.value_or_default() ? 6.0f : 3.0f;
-            if (ImGui::SliderFloat("Upscaler Ratio", &_mipmapUpscalerRatio, minLimit, maxLimit, "%.2f"))
+            if (ImGui::SliderFloat(MenuI18n::Label("Upscaler Ratio"), &_mipmapUpscalerRatio, minLimit, maxLimit, "%.2f"))
             {
                 _renderWidth = static_cast<uint32_t>(_displayWidth / _mipmapUpscalerRatio);
                 _mipBiasCalculated = log2((float) _renderWidth / (float) _displayWidth);
             }
 
-            if (ImGui::InputScalar("Render Width", ImGuiDataType_U32, &_renderWidth, NULL, NULL, "%u"))
+            if (ImGui::InputScalar(MenuI18n::Label("Render Width"), ImGuiDataType_U32, &_renderWidth, NULL, NULL, "%u"))
                 _mipBiasCalculated = log2((float) _renderWidth / (float) _displayWidth);
 
-            ImGui::SliderFloat("Mipmap Bias", &_mipBiasCalculated, -15.0f, 0.0f, "%.6f");
+            ImGui::SliderFloat(MenuI18n::Label("Mipmap Bias"), &_mipBiasCalculated, -15.0f, 0.0f, "%.6f");
 
             // BOTTOM LINE
             ImGui::Spacing();
@@ -7452,14 +7448,14 @@ void MenuCommon::RenderMipmapBiasWindow(RenderMenuContext& ctx, ImGuiWindowFlags
             ImGui::Spacing();
 
             constexpr float spacing = 6.0f;
-            auto textSize = ImGui::CalcTextSize("Use Value");
-            textSize += ImGui::CalcTextSize("Close");
+            auto textSize = ImGui::CalcTextSize(MenuI18n::Text("Use Value"));
+            textSize += ImGui::CalcTextSize(MenuI18n::Text("Close"));
             textSize.x += ImGui::GetStyle().FramePadding.x * 5.0f + spacing; // 2 sides * 2 buttons + 1
 
             float avail = ImGui::GetContentRegionAvail().x;
             ImGui::SetCursorPosX(ImGui::GetCursorPosX() + avail - textSize.x);
 
-            if (ImGui::Button("Use Value"))
+            if (ImGui::Button(MenuI18n::Label("Use Value")))
             {
                 _mipBias = _mipBiasCalculated;
                 _showMipmapCalcWindow = false;
@@ -7467,7 +7463,7 @@ void MenuCommon::RenderMipmapBiasWindow(RenderMenuContext& ctx, ImGuiWindowFlags
 
             ImGui::SameLine(0.0f, spacing);
 
-            if (ImGui::Button("Close"))
+            if (ImGui::Button(MenuI18n::Label("Close")))
                 _showMipmapCalcWindow = false;
 
             ImGui::Spacing();
@@ -7493,7 +7489,7 @@ void MenuCommon::RenderHudlessResourcesWindow(RenderMenuContext& ctx, ImGuiWindo
         ImGui::SetNextWindowPos(ImVec2 { posX, posY }, ImGuiCond_FirstUseEver);
         ImGui::SetNextWindowSize(ImVec2 { 400.0f, 300.0f });
 
-        if (ImGui::Begin("HUDless Resources", nullptr, flags))
+        if (ImGui::Begin(MenuI18n::Label("HUDless Resources"), nullptr, flags))
         {
             if (!ImGui::IsWindowFocused(ImGuiFocusedFlags_AnyWindow))
                 ImGui::SetWindowFocus();
@@ -7502,8 +7498,8 @@ void MenuCommon::RenderHudlessResourcesWindow(RenderMenuContext& ctx, ImGuiWindo
 
             if (ImGui::BeginTable("HUDlessTable", 2, ImGuiTableFlags_SizingFixedFit))
             {
-                ImGui::TableSetupColumn("##1", ImGuiTableColumnFlags_WidthStretch);
-                ImGui::TableSetupColumn("##2", ImGuiTableColumnFlags_WidthFixed);
+                ImGui::TableSetupColumn(MenuI18n::Text("##1"), ImGuiTableColumnFlags_WidthStretch);
+                ImGui::TableSetupColumn(MenuI18n::Text("##2"), ImGuiTableColumnFlags_WidthFixed);
 
                 ankerl::unordered_dense::map<void*, CapturedHudlessInfo>::iterator it;
 
@@ -7513,7 +7509,7 @@ void MenuCommon::RenderHudlessResourcesWindow(RenderMenuContext& ctx, ImGuiWindo
 
                     ImGui::TableSetColumnIndex(0);
 
-                    ImGui::Text("%08x, %s->%s, Count: %llu, %s", (size_t) it->first,
+                    MenuI18nUI::Text("%08x, %s->%s, Count: %llu, %s", (size_t) it->first,
                                 GetSourceString(it->second.captureInfo & 0xFF).c_str(),
                                 GetDispatchString(it->second.captureInfo & 0xFF00).c_str(), it->second.usageCount,
                                 it->second.enabled ? "Active" : "Passive");
@@ -7528,7 +7524,7 @@ void MenuCommon::RenderHudlessResourcesWindow(RenderMenuContext& ctx, ImGuiWindo
                     else
                         text = StrFmt("Enable##%d", btnCount);
 
-                    if (ImGui::Button(text.c_str()))
+                    if (ImGui::Button(MenuI18n::Label(text.c_str())))
                     {
                         LOG_DEBUG("HUDless {:X}: {}", (size_t) it->first,
                                   it->second.enabled ? "Disabling" : "Enabling");
@@ -7539,7 +7535,7 @@ void MenuCommon::RenderHudlessResourcesWindow(RenderMenuContext& ctx, ImGuiWindo
                 ImGui::EndTable();
             }
 
-            if (ImGui::Button("Clear##4"))
+            if (ImGui::Button(MenuI18n::Label("Clear##4")))
             {
                 LOG_DEBUG("Clearing captured HUDless resources");
                 state.clearCapturedHudlesses = true;
@@ -7547,123 +7543,12 @@ void MenuCommon::RenderHudlessResourcesWindow(RenderMenuContext& ctx, ImGuiWindo
 
             ImGui::SameLine(0.0f, 8.0f);
 
-            if (ImGui::Button("Close##4"))
+            if (ImGui::Button(MenuI18n::Label("Close##4")))
                 _showHudlessWindow = false;
 
             ImGui::End();
         }
     }
-}
-
-void MenuCommon::RenderSimpleMenuWindow(RenderMenuContext& ctx)
-{
-    auto config = ctx.config;
-    auto& state = ctx.state;
-    const float scale = std::clamp(ctx.menuResScale, .6f, 2.f);
-    if (lastMenuScale != scale)
-    {
-        lastMenuScale = scale;
-        auto& style = ImGui::GetStyle();
-        auto previous = style;
-        style = ImGuiStyle();
-        ApplyThemeStyle();
-        style.ScaleAllSizes(scale);
-        style.MouseCursorScale = 1.f;
-        CopyMemory(style.Colors, previous.Colors, sizeof(style.Colors));
-    }
-    ImGui::PushFont(simpleFont, 18.f * scale);
-    const auto* viewport = ImGui::GetMainViewport();
-    const ImVec2 maximum(std::max(160.f, viewport->WorkSize.x - 24.f), std::max(160.f, viewport->WorkSize.y - 24.f));
-    ImGui::SetNextWindowSizeConstraints(ImVec2(std::min(420.f * scale,maximum.x), std::min(240.f * scale,maximum.y)), maximum);
-    ImGui::SetNextWindowSize(ImVec2(std::min(560.f * scale,maximum.x),std::min(850.f * scale,maximum.y)), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowPos(ImVec2(viewport->WorkPos.x + viewport->WorkSize.x * .5f,
-                                  viewport->WorkPos.y + viewport->WorkSize.y * .5f), ImGuiCond_FirstUseEver, ImVec2(.5f,.5f));
-    bool open = true;
-    SimpleSettings::Actions actions;
-    SimpleSettings::Model model;
-    model.chinese = simpleFont != nullptr;
-    model.inputActive = ctx.currentFeature != nullptr && !ctx.currentFeature->IsFrozen();
-    const auto backend = GetBackendCode(state.api);
-    const auto backendName = UpscalerDisplayName(backend, state.api);
-    model.backend = backendName.c_str();
-    model.fsrSelected = backend == Upscaler::FFX || backend == Upscaler::FFX_on12 || backend == Upscaler::FSR31 ||
-                        backend == Upscaler::FSR22 || backend == Upscaler::FSR22_on12 || backend == Upscaler::FSR21 || backend == Upscaler::FSR21_on12;
-    model.canSelectFsr = model.inputActive && backend != Upscaler::DLSSD && (state.api == DX11 || state.api == DX12) && FfxApiProxy::IsSRReady(false);
-    model.ratioOverride = config->UpscaleRatioOverrideEnabled.value_or_default();
-    model.ratio = config->UpscaleRatioOverrideValue.value_or_default();
-    model.drsMin = config->DrsMinOverrideEnabled.value_or_default();
-    model.drsMax = config->DrsMaxOverrideEnabled.value_or_default();
-    model.qualityOverride = config->QualityRatioOverrideEnabled.value_or_default();
-    model.upscaleRestart = simpleUpscaleRestart;
-    if (!ffxInitTried && state.api != Vulkan && !state.externalFrameGeneration &&
-        (!FfxApiProxy::IsSRReady(false) || !FfxApiProxy::IsFGReady(false)))
-    {
-        ffxInitTried = true;
-        FfxApiProxy::InitFfxDx12();
-        model.canSelectFsr = model.inputActive && backend != Upscaler::DLSSD && FfxApiProxy::IsSRReady(false);
-    }
-    model.fgSupported = state.api != Vulkan && FfxApiProxy::IsFGReady(false);
-    model.externalFg = state.externalFrameGeneration;
-    model.fgRouteActive = state.activeFgOutput == FGOutput::FSRFG && state.activeFgInput != FGInput::NoFG;
-    model.fgRouteConfigured = config->FGInput.value_or_default() == FGInput::Upscaler && config->FGOutput.value_or_default() == FGOutput::FSRFG;
-    model.fgEnabled = config->FGEnabled.value_or_default();
-    model.fgRestart = state.activeFgOutput != config->FGOutput.value_or_default() || state.activeFgInput != config->FGInput.value_or_default() ||
-                      state.externalFrameGeneration != config->ExternalFrameGeneration.value_or_default();
-    model.nrAvailable = DlssNr::AmdBridge::HasFiles();
-    model.nrEnabled = config->DlssNrEnabled.value_or_default();
-    model.nrPercent = config->AmdNrScale.value_or_default() * 100.f;
-    model.tone = config->DlssNrLocalTone.value_or_default();
-    model.structure = config->DlssNrLocalStructure.value_or_default();
-    if (!std::isfinite(model.tone)) model.tone = 1.f;
-    if (!std::isfinite(model.structure)) model.structure = 1.f;
-    model.fpsLimit = config->FramerateLimit.value_or_default();
-    if (!std::isfinite(model.nrPercent)) model.nrPercent = 100.f;
-    if (!std::isfinite(model.fpsLimit)) model.fpsLimit = 0.f;
-    if (!std::isfinite(model.ratio)) model.ratio = 1.3f;
-    model.showFps = config->ShowFps.value_or_default();
-    if (ImGui::Begin(SimpleSettings::Text(model.chinese, "FFXIV AMD 简易设置###FfxivSimpleSettings", "FFXIV AMD Simple Settings###FfxivSimpleSettings"), &open, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings))
-    {
-        actions = SimpleSettings::Draw(model, simpleEdits);
-        if (simpleSaveResult != 0)
-            ImGui::TextWrapped("%s", simpleSaveResult > 0 ? SimpleSettings::Text(model.chinese,"设置已保存。","Settings saved.") : SimpleSettings::Text(model.chinese,"保存失败，请检查配置文件写入权限。","Save failed. Check configuration file permissions."));
-    }
-    ImGui::End();
-    ImGui::PopFont();
-    if (actions.selectFsr)
-    {
-        state.newBackend = state.api == DX11 ? Upscaler::FFX_on12 : Upscaler::FFX;
-        MARK_ALL_BACKENDS_CHANGED();
-    }
-    if (actions.ratio || actions.ffxivPreset)
-    {
-        config->UpscaleRatioOverrideEnabled = model.ratioOverride;
-        config->DrsMinOverrideEnabled = model.drsMin;
-        config->DrsMaxOverrideEnabled = model.drsMax;
-        simpleUpscaleRestart = true;
-        config->QualityRatioOverrideEnabled = false;
-        if (model.ratioOverride) config->UpscaleRatioOverrideValue = model.ratio;
-    }
-    if (actions.prepareFg)
-    {
-        config->FGInput = FGInput::Upscaler;
-        config->FGOutput = FGOutput::FSRFG;
-        state.fgSettingsChanged = true;
-    }
-    if (actions.fg)
-    {
-        config->FGEnabled = model.fgEnabled;
-        if (model.fgEnabled) state.fgChanged = true;
-    }
-    if (actions.nr) config->DlssNrEnabled = model.nrEnabled;
-    if (actions.nrScale) config->AmdNrScale = model.nrPercent / 100.f;
-    if (actions.tone) config->DlssNrLocalTone = model.tone;
-    if (actions.structure) config->DlssNrLocalStructure = model.structure;
-    if (actions.limit) { config->FramerateLimit = model.fpsLimit; _limitFps = model.fpsLimit; }
-    if (actions.showFps) config->ShowFps = model.showFps;
-    if (actions.ffxivPreset || actions.selectFsr || actions.ratio || actions.prepareFg || actions.fg || actions.nr || actions.nrScale || actions.tone || actions.structure || actions.limit || actions.showFps) simpleSaveResult = 0;
-    if (actions.save) simpleSaveResult = config->SaveIni() ? 1 : -1;
-    if (actions.full) { showFullSettings = true; simpleEdits = {}; }
-    if (actions.close || !open) HideMenu();
 }
 
 void MenuCommon::RenderMainMenuWindow(RenderMenuContext& ctx)
@@ -7677,11 +7562,6 @@ void MenuCommon::RenderMainMenuWindow(RenderMenuContext& ctx)
 
     if (!_isVisible)
         return;
-    if (!showFullSettings)
-    {
-        RenderSimpleMenuWindow(ctx);
-        return;
-    }
 
     // Check for GPU support once and reuse the result in all menu sections.
     // DXVK might call Vulkan device creation, which would destroy our objects.
@@ -7736,6 +7616,10 @@ void MenuCommon::RenderMainMenuWindow(RenderMenuContext& ctx)
         ImGui::SetNextWindowSize({ 1.0f, 1.0f });
     }
 
+    const auto* viewport = ImGui::GetMainViewport();
+    const ImVec2 maximum(std::max(160.f, viewport->WorkSize.x - 24.f), std::max(160.f, viewport->WorkSize.y - 24.f));
+    ImGui::SetNextWindowSizeConstraints(ImVec2(std::min(960.f * menuResScale, maximum.x), std::min(320.f * menuResScale, maximum.y)), maximum);
+
     // Main menu window
     if (windowTitle.empty())
     {
@@ -7744,14 +7628,10 @@ void MenuCommon::RenderMainMenuWindow(RenderMenuContext& ctx)
                              (state.detectedQuirks.size() > 0) ? "(Q)" : "", state.isOptiPatcherSucceed ? "(OP)" : "");
     }
 
-    if (ImGui::Begin(windowTitle.c_str(), NULL, flags))
+    if (ImGui::Begin(MenuI18n::Label(windowTitle.c_str()), NULL, flags))
     {
-        if (ImGui::Button("Back to simple settings"))
-        {
-            showFullSettings = false;
-            simpleEdits = {};
-            _showMipmapCalcWindow = _showHudlessWindow = false;
-        }
+        if (state.gameExe.find("ffxiv") != std::string::npos)
+            NativeMenuHints::Draw();
         // Header/status messages shown above the two-column settings table.
         RenderMainMenuHeaderMessages(ctx);
 
@@ -7844,7 +7724,7 @@ void RenderExposureScanIndicator(float alpha)
                             ImGuiCond_Always, ImVec2(1.0f, 0.0f));
     ImGui::SetNextWindowBgAlpha(alpha);
 
-    if (ImGui::Begin("DlssNrExposureScan", nullptr,
+    if (ImGui::Begin(MenuI18n::Label("DlssNrExposureScan"), nullptr,
                      ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoDecoration |
                          ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoFocusOnAppearing |
                          ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoMove))
@@ -7861,9 +7741,9 @@ void RenderExposureScanIndicator(float alpha)
         ImGui::SameLine();
 
         if (reading)
-            ImGui::TextColored(lamp, "%3.0f%%  %.5f", lit * 100.0f, now);
+            MenuI18nUI::TextColored(lamp, "%3.0f%%  %.5f", lit * 100.0f, now);
         else
-            ImGui::TextColored(idle, "--");
+            MenuI18nUI::TextColored(idle, "--");
     }
 
     ImGui::End();
@@ -7888,6 +7768,8 @@ bool MenuCommon::RenderMenu()
     BeginMenuFrameIfNeeded(ctx);
     OptiInput::EndFrame(_isVisible);
 
+    if (ctx.newFrame && chineseFont) ImGui::PushFont(chineseFont, fontSize);
+
     // 3) Draw lightweight overlay windows first, preserving the original order.
     ctx.menuResScale = MenuResolutionScale(ctx.io);
     RenderSplashWindow(ctx);
@@ -7900,7 +7782,10 @@ bool MenuCommon::RenderMenu()
     RenderMainMenuWindow(ctx);
 
     if (ctx.newFrame)
+    {
+        if (chineseFont) ImGui::PopFont();
         ImGui::EndFrame();
+    }
 
     return ctx.newFrame;
 }
@@ -7989,7 +7874,8 @@ void MenuCommon::Init(HWND InHwnd, bool isUWP)
         }
     }
 
-    LoadSimpleSettingsFont(io);
+    LoadChineseMenuFont(io);
+    MenuI18n::enabled = chineseFont != nullptr;
 
     if (!Config::Instance()->OverlayMenu.value_or_default())
     {
@@ -8034,9 +7920,8 @@ void MenuCommon::Shutdown()
         ImGui_ImplUwp_Shutdown();
 
     ImGui::DestroyContext();
-    simpleFont = nullptr;
-    simpleEdits = {};
-    showFullSettings = false;
+    chineseFont = nullptr;
+    MenuI18n::enabled = false;
 
     _handle = nullptr;
     _isInited = false;

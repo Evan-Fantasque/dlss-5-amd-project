@@ -4,6 +4,7 @@
 #include <Config.h>
 
 #include <imgui/imgui.h>
+#include "ui_localization.h"
 
 class ScopedIndent
 {
@@ -26,7 +27,7 @@ class ScopedCollapsingHeader
         ImGui::BeginChild("##CollapsingHeaderChild", ImVec2(0, 0), ImGuiChildFlags_AutoResizeY,
                           ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
 
-        _headerOpen = ImGui::CollapsingHeader(label, flags);
+        _headerOpen = ImGui::CollapsingHeader(MenuI18n::Label(label), flags);
         _active = true;
     }
 
@@ -156,7 +157,6 @@ class MenuCommon
     // so a screenshot keeps them and the wipe reveals and hides them like the images.
     static void RenderNrCompareTags();
     static void RenderMainMenuWindow(RenderMenuContext& ctx);
-    static void RenderSimpleMenuWindow(RenderMenuContext& ctx);
 
     // RenderMainMenuWindow section helpers. These keep the main window flow readable
     // without changing the existing ImGui layout, labels, or setting side effects.

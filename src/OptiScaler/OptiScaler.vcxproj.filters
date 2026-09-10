@@ -278,7 +278,7 @@
     <ClInclude Include="menu\menu_dx_base.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="menu\simple_settings.h">
+    <ClInclude Include="menu\ui_localization.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="menu\menu_common.h">
