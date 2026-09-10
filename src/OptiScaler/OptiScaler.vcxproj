@@ -125,6 +125,12 @@
     <IncludePath>$(ProjectDir);$(ProjectDir)include\;$(SolutionDir)external\vulkan\include;$(SolutionDir)external\nvngx_dlss_sdk;$(SolutionDir)external\xess\inc\xess;$(SolutionDir)external\xess\inc\xell;$(SolutionDir)external\xess\inc\xess_fg;$(SolutionDir)external\FidelityFX-SDK\ffx-api\include\ffx_api;$(SolutionDir)external\simpleini;$(SolutionDir)external\unordered_dense\include;$(SolutionDir)external\spdlog\include;$(SolutionDir)external\freetype;$(SolutionDir)external\streamline;$(SolutionDir)external\streamline1;$(SolutionDir)external\nvapi;$(SolutionDir)external\nlohmann;$(SolutionDir)external\fakenvapi;$(SolutionDir)external\magic_enum\include\magic_enum;$(SolutionDir)external\AntiLag2-SDK;$(SolutionDir)external\latencyflex;$(IncludePath)</IncludePath>
     <LibraryPath>$(ProjectDir)library\fsr2;$(ProjectDir)library\fsr2_212;$(ProjectDir)library\fsr31;$(ProjectDir)library\vulkan;$(ProjectDir)library\d3dx;$(ProjectDir)library\detours;$(SolutionDir)external\xess\lib;$(SolutionDir)external\freetype;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
+  <!-- ImGui consumes UTF-8 literals. Keep BOM detection for mixed legacy source encodings. -->
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalOptions>/execution-charset:utf-8 %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+  </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>

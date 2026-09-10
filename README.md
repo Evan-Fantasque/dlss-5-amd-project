@@ -1,4 +1,4 @@
-# FFXIV AMD NR 优化版 · test11
+# FFXIV AMD NR 优化版 · test12
 
 基于 [MatheusGViana/dlss-5-amd-project](https://github.com/MatheusGViana/dlss-5-amd-project) 的实验性 OptiScaler 分支，重点改善 FF14 中 AMD Neural Rendering 的随机超时和处理效率。
 
@@ -38,7 +38,7 @@ python tools/build.py --rebuild
 
 可用 `--vs`、`--sdk`、`--directx-headers` 指定其他安装位置。更换头文件或工具链后使用 `--rebuild` 重新生成预编译头。输出为 `src/x64/Release/OptiScaler.dll`；构建日志位于 `.build/`。本脚本不改动游戏安装目录。
 
-## 中文原生完整菜单（test11）
+## 中文原生完整菜单（test12）
 
 按原菜单快捷键（默认 Insert）直接打开中文原生完整菜单，启动时不会自动弹窗。保留全部原生选项、后端切换和应用按钮，撤下简易菜单与一键设置按钮。恢复完整菜单不会替用户修改游戏或已有配置。
 
@@ -55,7 +55,7 @@ FFXIV 中请分别检查以下设置：
 
 `config/ffxiv/OptiScaler.ini` 仅为首次安装的倍率／DRS 模板，其余参数采用原有默认值；已有配置不要用此模板覆盖。它不是完整安装配置，也不会自动开启 AMD 超分前处理。
 
-完整 Release DLL 构建和离屏中文控件交互检查通过；**test11 尚待实际游戏验证**。兼容性问题仍处于验证阶段，未因本次本地化被标记为解决。
+test11 在游戏中发现中文显示为问号：正式 DLL 使用了系统默认执行字符集，而 ImGui 需要 UTF-8；不是缺少中文字库。test12 统一正式项目的 UTF-8 编译设置，并在每次构建后检查 DLL 中全部 878 条中文词条的实际字节。完整 Release DLL 构建、产物编码检查和离屏中文控件交互检查通过；**test12 尚待实际游戏验证**。兼容性问题仍处于验证阶段，未因本次本地化被标记为解决。
 
 ## 使用
 
@@ -75,7 +75,7 @@ python tools/build.py worker
 python tools/build.py continuity
 .build/tests/continuity-test.exe
 python tools/build.py smoke
-python tools/localization.py --check
+python tools/localization.py --check --binary src/x64/Release/OptiScaler.dll
 python tools/build.py menu
 .build/tests/localization-test.exe
 ```

@@ -25,7 +25,10 @@ if a.target=='product':
     env['CL']='/I"'+str(headers)+'" '+env.get('CL','')
     env['MSBUILDDISABLENODEREUSE']='1'
     args=[str(vs/'MSBuild/Current/Bin/MSBuild.exe'),str(source/'OptiScaler.sln'),'/m:1','/nr:false','/t:Rebuild' if a.rebuild else '/t:Build','/p:Configuration=Release','/p:Platform=x64',f'/p:VCToolsVersion={vc.name}',f'/p:WindowsTargetPlatformVersion={a.sdk}','/p:PreBuildEventUseInBuild=false','/p:PostBuildEventUseInBuild=false','/v:minimal','/fl',f'/flp:logfile={out}/build.log;verbosity=normal']
-    sys.exit(subprocess.call(args,cwd=source,env=env))
+    result=subprocess.call(args,cwd=source,env=env)
+    if result == 0:
+        result=subprocess.call([sys.executable,str(root/'tools/localization.py'),'--check','--binary',str(source/'x64/Release/OptiScaler.dll')],cwd=root,env=env)
+    sys.exit(result)
 tests=root/'tests';bin_dir=out/'tests';bin_dir.mkdir(exist_ok=True)
 obj=out/'obj';obj.mkdir(exist_ok=True)
 sources=[tests/'smoke.cpp',amd/'AmdPreSr.cpp'];exe='amd-smoke.exe';defines=[]

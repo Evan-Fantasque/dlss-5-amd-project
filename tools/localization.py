@@ -2,7 +2,7 @@
 from pathlib import Path
 import argparse,json,re
 root=Path(__file__).resolve().parents[1]
-p=argparse.ArgumentParser();p.add_argument('--check',action='store_true');a=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('--check',action='store_true');p.add_argument('--binary',type=Path,help='Verify UTF-8 catalog strings in the compiled DLL');a=p.parse_args()
 data=json.loads((root/'config/localization/zh-CN.json').read_text(encoding='utf-8'))
 fmt=re.compile(r'%(?:%|[-+#0]*(?:\d+|\*)?(?:\.(?:\d+|\*))?(?:hh|ll|I64|[hljztL])?[diuoxXfFeEgGaAcspn])')
 for en,zh in data.items():
@@ -17,3 +17,10 @@ header=root/'src/OptiScaler/menu/ui_localization_data.h'
 if a.check:assert header.read_bytes()==expected,'Catalog header is stale; run tools/localization.py'
 else:header.write_bytes(expected)
 print(f'PASS: {len(data)} translations, matching format signatures and compiled catalog')
+
+if a.binary:
+    binary=a.binary.read_bytes()
+    missing=[en for en,zh in data.items() if zh.encode('utf-8')+b'\0' not in binary]
+    if missing:
+        raise SystemExit(f'FAIL: {len(missing)}/{len(data)} UTF-8 translations missing from {a.binary}; compile the product with /execution-charset:utf-8. Examples: '+repr(missing[:3]))
+    print(f'PASS: all {len(data)} UTF-8 translations are present in the compiled binary')
